@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Offline Data Analyst</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0f0f1a; color: #e0e0e0; }
+        .header { background: #1a1a2e; padding: 20px 40px; border-bottom: 2px solid #4f46e5; }
+        .header h1 { font-size: 1.4rem; color: #818cf8; }
+        .header p { font-size: 0.8rem; color: #6b7280; margin-top: 4px; }
+        .container { max-width: 1100px; margin: 30px auto; padding: 0 20px; }
+        .panel { background: #1a1a2e; border-radius: 10px; padding: 24px; margin-bottom: 24px; border: 1px solid #2d2d4e; }
+        .panel h2 { font-size: 1rem; color: #818cf8; margin-bottom: 16px; }
+        .upload-zone { border: 2px dashed #4f46e5; border-radius: 8px; padding: 30px; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .upload-zone:hover { background: #252544; border-color: #818cf8; }
+        .upload-zone input { display: none; }
+        .upload-zone .icon { font-size: 2.5rem; margin-bottom: 10px; }
+        .upload-zone p { color: #9ca3af; font-size: 0.9rem; }
+        .btn { background: #4f46e5; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; transition: background 0.2s; }
+        .btn:hover { background: #4338ca; }
+        .btn:disabled { background: #374151; cursor: not-allowed; }
+        .tables-list { display: flex; flex-wrap: wrap; gap: 10px; }
+        .table-chip { background: #252544; border: 1px solid #4f46e5; border-radius: 20px; padding: 6px 14px; font-size: 0.8rem; color: #818cf8; }
+        .table-chip span { color: #9ca3af; font-size: 0.75rem; }
+        .query-row { display: flex; gap: 10px; }
+        .query-input { flex: 1; background: #0f0f1a; border: 1px solid #4f46e5; color: #e0e0e0; padding: 12px 16px; border-radius: 6px; font-size: 0.95rem; outline: none; }
+        .query-input:focus { border-color: #818cf8; }
+        .interpretation { background: #252544; border-left: 3px solid #818cf8; padding: 10px 14px; border-radius: 4px; font-size: 0.85rem; color: #9ca3af; margin-bottom: 12px; }
+        .sql-box { background: #0f0f1a; border: 1px solid #2d2d4e; border-radius: 6px; padding: 12px; font-family: monospace; font-size: 0.8rem; color: #6ee7b7; margin-bottom: 16px; overflow-x: auto; white-space: pre; }
+        .results-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .results-table th { background: #252544; color: #818cf8; padding: 10px 14px; text-align: left; border-bottom: 1px solid #2d2d4e; }
+        .results-table td { padding: 8px 14px; border-bottom: 1px solid #1a1a2e; color: #d1d5db; }
+        .results-table tr:hover td { background: #252544; }
+        .meta { color: #6b7280; font-size: 0.78rem; margin-top: 8px; }
+        .status { padding: 10px 14px; border-radius: 6px; font-size: 0.85rem; margin-top: 12px; }
+        .status.success { background: #064e3b; color: #6ee7b7; }
+        .status.error { background: #450a0a; color: #fca5a5; }
+        .loading { color: #818cf8; font-size: 0.85rem; animation: pulse 1.2s infinite; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .examples { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+        .example-btn { background: #252544; border: 1px solid #374151; color: #9ca3af; padding: 5px 12px; border-radius: 14px; font-size: 0.78rem; cursor: pointer; transition: all 0.2s; }
+        .example-btn:hover { border-color: #818cf8; color: #818cf8; }
+    </style>
+</head>
+<body>
+<div class="header">
+    <h1>⚡ Offline Data Analyst</h1>
+    <p>All data stays on your machine. No internet. No external APIs.</p>
+</div>
+
+<div class="container">
+
+    <!-- Upload Panel -->
+    <div class="panel">
+        <h2>📂 Upload Files</h2>
+        <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+            <div class="icon">📊</div>
+            <p>Click to upload or drag & drop</p>
+            <p style="margin-top:6px; font-size:0.75rem;">Supports: CSV, XLS, XLSX</p>
+            <input type="file" id="fileInput" accept=".csv,.xls,.xlsx" multiple />
+        </div>
+        <div id="uploadStatus"></div>
+    </div>
+
+    <!-- Loaded Tables Panel -->
+    <div class="panel">
+        <h2>🗃️ Loaded Tables</h2>
+        <div class="tables-list" id="tablesList">
+            <span style="color:#6b7280; font-size:0.85rem;">No files uploaded yet.</span>
+        </div>
+    </div>
+
+    <!-- Query Panel -->
+    <div class="panel">
+        <h2>💬 Ask a Question</h2>
+        <div class="query-row">
+            <input class="query-input" id="queryInput" type="text"
+                   placeholder="e.g. Average salary by department" />
+            <button class="btn" id="queryBtn" onclick="runQuery()">Ask →</button>
+        </div>
+        <div class="examples">
+            <button class="example-btn" onclick="setQuery('Count rows in employees')">Count rows</button>
+            <button class="example-btn" onclick="setQuery('Show columns in payroll')">Show columns</button>
+            <button class="example-btn" onclick="setQuery('Find duplicate employee_id')">Find duplicates</button>
+            <button class="example-btn" onclick="setQuery('Show missing values in phone')">Missing values</button>
+            <button class="example-btn" onclick="setQuery('Average salary by department')">Avg by group</button>
+            <button class="example-btn" onclick="setQuery('Which files contain email column')">Find column</button>
+            <button class="example-btn" onclick="setQuery('Show me first 20 rows')">Preview data</button>
+        </div>
+        <div id="queryResult" style="margin-top:20px;"></div>
+    </div>
+
+</div>
+
+<script>
+    // ── File Upload ──────────────────────────────────────────────
+    document.getElementById('fileInput').addEventListener('change', async (e) => {
+        for (const file of e.target.files) {
+            await uploadFile(file);
+        }
+        await loadTables();
+    });
+
+    const dropZone = document.getElementById('dropZone');
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.background = '#252544'; });
+    dropZone.addEventListener('dragleave', () => { dropZone.style.background = ''; });
+    dropZone.addEventListener('drop', async e => {
+        e.preventDefault();
+        dropZone.style.background = '';
+        for (const file of e.dataTransfer.files) {
+            await uploadFile(file);
+        }
+        await loadTables();
+    });
+
+    async function uploadFile(file) {
+        const statusEl = document.getElementById('uploadStatus');
+        statusEl.innerHTML = `<div class="loading">Uploading ${file.name}...</div>`;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await fetch('/api/files/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (res.ok) {
+                statusEl.innerHTML = `<div class="status success">✓ ${data.originalFileName} loaded → table: <strong>${data.tableName}</strong> | ${data.rowCount.toLocaleString()} rows | ${data.columns.length} columns</div>`;
+            } else {
+                statusEl.innerHTML = `<div class="status error">✗ ${data.error || 'Upload failed'}</div>`;
+            }
+        } catch (err) {
+            statusEl.innerHTML = `<div class="status error">✗ Network error: ${err.message}</div>`;
+        }
+    }
+
+    async function loadTables() {
+        try {
+            const res = await fetch('/api/files');
+            const tables = await res.json();
+            const el = document.getElementById('tablesList');
+            if (!tables.length) {
+                el.innerHTML = '<span style="color:#6b7280; font-size:0.85rem;">No files uploaded yet.</span>';
+                return;
+            }
+            el.innerHTML = tables.map(t =>
+                `<div class="table-chip">📄 ${t.tableName} <span>(${t.rowCount.toLocaleString()} rows)</span></div>`
+            ).join('');
+        } catch {}
+    }
+
+    // ── Query ────────────────────────────────────────────────────
+    document.getElementById('queryInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') runQuery();
+    });
+
+    function setQuery(q) {
+        document.getElementById('queryInput').value = q;
+        runQuery();
+    }
+
+    async function runQuery() {
+        const query = document.getElementById('queryInput').value.trim();
+        if (!query) return;
+
+        const resultEl = document.getElementById('queryResult');
+        resultEl.innerHTML = '<div class="loading">Processing query...</div>';
+
+        try {
+            const res = await fetch('/api/query', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query })
+            });
+            const data = await res.json();
+            renderQueryResult(data, resultEl);
+        } catch (err) {
+            resultEl.innerHTML = `<div class="status error">✗ Error: ${err.message}</div>`;
+        }
+    }
+
+    function renderQueryResult(data, container) {
+        if (data.error) {
+            container.innerHTML = `<div class="status error">✗ ${data.error}</div>`;
+            return;
+        }
+        if (data.message && !data.columns?.length) {
+            container.innerHTML = `<div class="status success">ℹ ${data.message}</div>`;
+            return;
+        }
+
+        let html = '';
+
+        if (data.interpretationSummary) {
+            html += `<div class="interpretation">🤖 ${data.interpretationSummary}</div>`;
+        }
+
+        if (data.generatedSql) {
+            html += `<div class="sql-box">${escapeHtml(data.generatedSql)}</div>`;
+        }
+
+        if (data.columns?.length && data.rows?.length) {
+            html += `<div style="overflow-x:auto"><table class="results-table"><thead><tr>`;
+            data.columns.forEach(col => { html += `<th>${escapeHtml(col)}</th>`; });
+            html += `</tr></thead><tbody>`;
+            data.rows.forEach(row => {
+                html += '<tr>';
+                row.forEach(val => { html += `<td>${escapeHtml(val ?? 'NULL')}</td>`; });
+                html += '</tr>';
+            });
+            html += `</tbody></table></div>`;
+            html += `<div class="meta">${data.rowCount} row(s) returned in ${data.executionTimeMs}ms</div>`;
+        }
+
+        container.innerHTML = html || '<div class="status success">✓ Query executed with no results.</div>';
+    }
+
+    function escapeHtml(str) {
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // Load tables on startup
+    loadTables();
+</script>
+</body>
+</html>
