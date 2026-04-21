@@ -1,21 +1,26 @@
-// controller/QueryController.java
 package com.enterprise.dataanalyst.controller;
 
 import com.enterprise.dataanalyst.dto.QueryRequest;
 import com.enterprise.dataanalyst.dto.QueryResponse;
+import com.enterprise.dataanalyst.exception.QueryProcessingException;
+import com.enterprise.dataanalyst.model.TableMetadata;
+import com.enterprise.dataanalyst.nlp.IntentAction;
 import com.enterprise.dataanalyst.nlp.QueryIntent;
-import com.enterprise.dataanalyst.service.nlp.IntentEnrichmentService;
-import com.enterprise.dataanalyst.service.nlp.IntentParserService;
+import com.enterprise.dataanalyst.service.llm.IntentBasedSQLGenerator;
+import com.enterprise.dataanalyst.service.llm.SemanticIntentClassifier;
 import com.enterprise.dataanalyst.service.query.QueryExecutorService;
-import com.enterprise.dataanalyst.service.query.SQLGeneratorService;
 import com.enterprise.dataanalyst.service.registry.TableMetadataRegistry;
 import com.enterprise.dataanalyst.service.result.ResultFormatterService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -25,15 +30,11 @@ import java.util.Map;
 @Slf4j
 public class QueryController {
 
-    private final IntentParserService intentParser;
-    private final IntentEnrichmentService enrichmentService;
-    private final SQLGeneratorService sqlGenerator;
-    private final QueryExecutorService queryExecutor;
-    private final ResultFormatterService resultFormatter;
+    private final SemanticIntentClassifier intentClassifier;
+    private final IntentBasedSQLGenerator sqlGenerator;
+    private final QueryExecutorService queryExecutorService;
+    private final ResultFormatterService resultFormatterService;
     private final TableMetadataRegistry registry;
-
-    @Value("${app.nlp.confidence-threshold:0.6}")
-    private double confidenceThreshold;
 
     @PostMapping
     public ResponseEntity<QueryResponse> query(@Valid @RequestBody QueryRequest request) {
@@ -41,38 +42,57 @@ public class QueryController {
 
         if (registry.isEmpty()) {
             return ResponseEntity.ok(QueryResponse.builder()
-                    .message("No files uploaded yet. Please upload a CSV or Excel file first.")
+                    .message("No files uploaded yet. Please upload a file first.")
                     .build());
         }
 
         long startTime = System.currentTimeMillis();
 
-        // Step 1: Parse intent
-        QueryIntent intent = intentParser.parse(request.getQuery(), registry.getAllTables());
+        try {
+            Collection<TableMetadata> allTables = registry.getAllTables();
 
-        // Step 2: Check confidence threshold
-        if (intent.getConfidence() < confidenceThreshold) {
-            return ResponseEntity.ok(QueryResponse.builder()
-                    .interpretationSummary(intent.getInterpretationSummary())
-                    .message("Query not understood with sufficient confidence. " +
-                            "Try: 'count rows in employees', 'average salary by department', " +
-                            "'find duplicates in employee_id'")
-                    .build());
+            // Step 1: AI classifies intent semantically
+            QueryIntent intent = intentClassifier.classify(request.getQuery(), allTables);
+
+            // Low confidence — ask for clarification
+            if (intent.getAction() == IntentAction.UNKNOWN) {
+                return ResponseEntity.ok(QueryResponse.builder()
+                        .interpretationSummary(intent.getInterpretationSummary())
+                        .message(intent.getInterpretationSummary())
+                        .build());
+            }
+
+            // Step 2: Handle FIND_FILES_WITH_COLUMN via registry
+            if (intent.getAction() == IntentAction.FIND_FILES_WITH_COLUMN) {
+                List<Map<String, Object>> results =
+                        queryExecutorService.execute(intent, null);
+                long elapsed = System.currentTimeMillis() - startTime;
+                return ResponseEntity.ok(
+                        resultFormatterService.format(intent, null, results, elapsed));
+            }
+
+            // Step 3: Generate deterministic SQL from intent
+            String sql = sqlGenerator.generate(intent);
+
+            // Step 4: Execute against DuckDB
+            List<Map<String, Object>> rawResults =
+                    queryExecutorService.execute(intent, sql);
+
+            long elapsed = System.currentTimeMillis() - startTime;
+
+            // Step 5: Format and return
+            return ResponseEntity.ok(
+                    resultFormatterService.format(intent, sql, rawResults, elapsed));
+
+        } catch (QueryProcessingException e) {
+            log.warn("Query error: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(QueryResponse.builder().error(e.getMessage()).build());
+        } catch (Exception e) {
+            log.error("Unexpected error: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(QueryResponse.builder()
+                            .error("Unexpected error. Check server logs.").build());
         }
-
-        // Step 3: Enrich intent (resolve table/column names)
-        QueryIntent enrichedIntent = enrichmentService.enrich(intent);
-
-        // Step 4: Generate SQL
-        String sql = sqlGenerator.generate(enrichedIntent);
-
-        // Step 5: Execute
-        List<Map<String, Object>> rawResults = queryExecutor.execute(enrichedIntent, sql);
-
-        long elapsed = System.currentTimeMillis() - startTime;
-
-        // Step 6: Format and return
-        QueryResponse response = resultFormatter.format(enrichedIntent, sql, rawResults, elapsed);
-        return ResponseEntity.ok(response);
     }
 }
