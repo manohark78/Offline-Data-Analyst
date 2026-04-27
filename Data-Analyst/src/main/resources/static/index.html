@@ -91,6 +91,21 @@
         </div>
         <div id="queryResult" style="margin-top:20px;"></div>
     </div>
+    <!-- History Panel -->
+<div class="panel">
+  <h2>
+    📜 Query History
+    <span id="historyCount" style="background:#252544;color:#6b7280;
+          font-size:0.75rem;padding:2px 10px;border-radius:10px;
+          margin-left:8px;">0 queries</span>
+    <button onclick="clearHistory()" style="float:right;background:none;
+            border:1px solid #374151;color:#6b7280;padding:4px 10px;
+            border-radius:6px;font-size:0.75rem;cursor:pointer;">
+      Clear
+    </button>
+  </h2>
+  <div id="historyList"></div>
+</div>
 
 </div>
 
@@ -178,6 +193,66 @@
         } catch (err) {
             resultEl.innerHTML = `<div class="status error">✗ Error: ${err.message}</div>`;
         }
+        await loadHistory()
+    }
+    async function loadHistory() {
+  try {
+    const res  = await fetch('/api/query/history?limit=50');
+    const data = await res.json();
+
+    const list    = document.getElementById('historyList');
+    const counter = document.getElementById('historyCount');
+    counter.textContent = `${data.length} queries`;
+
+    if (!data.length) {
+      list.innerHTML = `<p style="color:#6b7280;font-size:0.85rem;">
+        No history yet.</p>`;
+      return;
+    }
+
+    list.innerHTML = data.map(h => `
+      <div style="
+        background:#0f0f1a;border:1px solid #2d2d4e;
+        border-radius:6px;padding:10px 14px;
+        margin-bottom:8px;cursor:pointer;
+        transition:border-color 0.2s"
+        onmouseover="this.style.borderColor='#4f46e5'"
+        onmouseout="this.style.borderColor='#2d2d4e'"
+        onclick="rerunQuery('${escapeHtml(h.userQuery)}')">
+        <div style="display:flex;justify-content:space-between;
+                    align-items:center;margin-bottom:6px">
+          <span style="font-size:0.85rem;color:#e0e0e0;font-weight:500">
+            ${escapeHtml(h.userQuery)}
+          </span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="font-size:0.72rem;color:#6b7280">
+              ${h.rowCount} rows
+            </span>
+            <span style="font-size:0.72rem;color:#6b7280">
+              ${h.executionMs}ms
+            </span>
+            <span style="
+              font-size:0.7rem;padding:2px 8px;border-radius:10px;
+              background:${h.status === 'SUCCESS' ? '#064e3b' : '#450a0a'};
+              color:${h.status === 'SUCCESS' ? '#6ee7b7' : '#fca5a5'}">
+              ${h.status}
+            </span>
+          </div>
+        </div>
+        <div style="font-family:monospace;font-size:0.75rem;
+                    color:#4f46e5;white-space:nowrap;overflow:hidden;
+                    text-overflow:ellipsis">
+          ${escapeHtml(h.generatedSql || '')}
+        </div>
+        <div style="font-size:0.7rem;color:#6b7280;margin-top:4px">
+          ${new Date(h.queriedAt).toLocaleString()}
+        </div>
+      </div>
+    `).join('');
+
+  } catch(err) {
+    console.error('History load failed:', err);
+  }
     }
 
     function renderQueryResult(data, container) {
@@ -215,6 +290,23 @@
 
         container.innerHTML = html || '<div class="status success">✓ Query executed with no results.</div>';
     }
+
+
+function rerunQuery(query) {
+  document.getElementById('queryInput').value = query;
+  runQuery();
+  // Scroll to query section
+  document.getElementById('queryInput').scrollIntoView(
+    { behavior: 'smooth' });
+}
+
+async function clearHistory() {
+  await fetch('/api/query/history', { method: 'DELETE' });
+  loadHistory();
+}
+
+// Load history on startup + after each query
+loadHistory();
 
     function escapeHtml(str) {
         return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
