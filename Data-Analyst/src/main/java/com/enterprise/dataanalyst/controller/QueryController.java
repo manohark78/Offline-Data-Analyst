@@ -3,24 +3,17 @@ package com.enterprise.dataanalyst.controller;
 import com.enterprise.dataanalyst.dto.QueryRequest;
 import com.enterprise.dataanalyst.dto.QueryResponse;
 import com.enterprise.dataanalyst.exception.QueryProcessingException;
-import com.enterprise.dataanalyst.model.TableMetadata;
-import com.enterprise.dataanalyst.nlp.IntentAction;
-import com.enterprise.dataanalyst.nlp.QueryIntent;
-import com.enterprise.dataanalyst.service.llm.IntentBasedSQLGenerator;
-import com.enterprise.dataanalyst.service.llm.SemanticIntentClassifier;
+import com.enterprise.dataanalyst.service.history.QueryHistoryService;
+import com.enterprise.dataanalyst.service.llm.SQLCoderService;
 import com.enterprise.dataanalyst.service.query.QueryExecutorService;
 import com.enterprise.dataanalyst.service.registry.TableMetadataRegistry;
-import com.enterprise.dataanalyst.service.result.ResultFormatterService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -30,15 +23,17 @@ import java.util.Map;
 @Slf4j
 public class QueryController {
 
-    private final SemanticIntentClassifier intentClassifier;
-    private final IntentBasedSQLGenerator sqlGenerator;
+    private final SQLCoderService sqlCoderService;
     private final QueryExecutorService queryExecutorService;
-    private final ResultFormatterService resultFormatterService;
+    private final QueryHistoryService historyService;
     private final TableMetadataRegistry registry;
 
     @PostMapping
-    public ResponseEntity<QueryResponse> query(@Valid @RequestBody QueryRequest request) {
-        log.info("Received query: '{}'", request.getQuery());
+    public ResponseEntity<QueryResponse> query(
+            @Valid @RequestBody QueryRequest request) {
+
+        log.info("Query received: '{}'", request.getQuery());
+        long start = System.currentTimeMillis();
 
         if (registry.isEmpty()) {
             return ResponseEntity.ok(QueryResponse.builder()
@@ -46,53 +41,102 @@ public class QueryController {
                     .build());
         }
 
-        long startTime = System.currentTimeMillis();
+        String generatedSql = null;
 
         try {
-            Collection<TableMetadata> allTables = registry.getAllTables();
+            // Step 1: Generate SQL
+            generatedSql = sqlCoderService.generateSQL(request.getQuery());
+            log.info("SQL to execute: {}", generatedSql);
 
-            // Step 1: AI classifies intent semantically
-            QueryIntent intent = intentClassifier.classify(request.getQuery(), allTables);
-
-            // Low confidence — ask for clarification
-            if (intent.getAction() == IntentAction.UNKNOWN) {
-                return ResponseEntity.ok(QueryResponse.builder()
-                        .interpretationSummary(intent.getInterpretationSummary())
-                        .message(intent.getInterpretationSummary())
-                        .build());
-            }
-
-            // Step 2: Handle FIND_FILES_WITH_COLUMN via registry
-            if (intent.getAction() == IntentAction.FIND_FILES_WITH_COLUMN) {
-                List<Map<String, Object>> results =
-                        queryExecutorService.execute(intent, null);
-                long elapsed = System.currentTimeMillis() - startTime;
-                return ResponseEntity.ok(
-                        resultFormatterService.format(intent, null, results, elapsed));
-            }
-
-            // Step 3: Generate deterministic SQL from intent
-            String sql = sqlGenerator.generate(intent);
-
-            // Step 4: Execute against DuckDB
+            // Step 2: ALWAYS execute — never return SQL only
             List<Map<String, Object>> rawResults =
-                    queryExecutorService.execute(intent, sql);
+                    queryExecutorService.executeRaw(generatedSql);
 
-            long elapsed = System.currentTimeMillis() - startTime;
+            long elapsed = System.currentTimeMillis() - start;
 
-            // Step 5: Format and return
-            return ResponseEntity.ok(
-                    resultFormatterService.format(intent, sql, rawResults, elapsed));
+            // Step 3: Build columns and rows
+            List<String> columns = rawResults.isEmpty()
+                    ? List.of()
+                    : new ArrayList<>(rawResults.get(0).keySet());
+
+            List<List<String>> rows = new ArrayList<>();
+            for (Map<String, Object> row : rawResults) {
+                List<String> rowData = new ArrayList<>();
+                for (Object val : row.values()) {
+                    rowData.add(val == null ? "NULL" : String.valueOf(val));
+                }
+                rows.add(rowData);
+            }
+
+            // Step 4: Save to history
+            historyService.save(
+                request.getQuery(), generatedSql,
+                "SUCCESS", rawResults.size(), elapsed);
+
+            return ResponseEntity.ok(QueryResponse.builder()
+                    .columns(columns)
+                    .rows(rows)
+                    .rowCount(rawResults.size())
+                    .generatedSql(generatedSql)
+                    .interpretationSummary(buildSummary(
+                        request.getQuery(), rawResults.size(), elapsed))
+                    .executionTimeMs(elapsed)
+                    .build());
 
         } catch (QueryProcessingException e) {
-            log.warn("Query error: {}", e.getMessage());
+            long elapsed = System.currentTimeMillis() - start;
+            historyService.save(
+                request.getQuery(), generatedSql, "ERROR", 0, elapsed);
+
+            log.warn("Query failed: {}", e.getMessage());
             return ResponseEntity.badRequest()
-                    .body(QueryResponse.builder().error(e.getMessage()).build());
+                    .body(QueryResponse.builder()
+                            .error(e.getMessage())
+                            .generatedSql(generatedSql)
+                            .build());
+
         } catch (Exception e) {
+            long elapsed = System.currentTimeMillis() - start;
+            historyService.save(
+                request.getQuery(), generatedSql, "ERROR", 0, elapsed);
+
             log.error("Unexpected error: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError()
                     .body(QueryResponse.builder()
-                            .error("Unexpected error. Check server logs.").build());
+                            .error("Unexpected error: " + e.getMessage())
+                            .build());
         }
+    }
+
+    /**
+     * Get query history — persists across restarts.
+     */
+    @GetMapping("/history")
+    public ResponseEntity<List<Map<String, Object>>> getHistory(
+            @RequestParam(defaultValue = "50") int limit) {
+        return ResponseEntity.ok(historyService.getRecent(limit));
+    }
+
+    /**
+     * Search history by keyword.
+     */
+    @GetMapping("/history/search")
+    public ResponseEntity<List<Map<String, Object>>> searchHistory(
+            @RequestParam String q) {
+        return ResponseEntity.ok(historyService.search(q));
+    }
+
+    /**
+     * Clear history.
+     */
+    @DeleteMapping("/history")
+    public ResponseEntity<Map<String, String>> clearHistory() {
+        historyService.clear();
+        return ResponseEntity.ok(Map.of("message", "History cleared."));
+    }
+
+    private String buildSummary(String query, int rowCount, long ms) {
+        return "Query executed in " + ms + "ms — " +
+               rowCount + " row(s) returned";
     }
 }
