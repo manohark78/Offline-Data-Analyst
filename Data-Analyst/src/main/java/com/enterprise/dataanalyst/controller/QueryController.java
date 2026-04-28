@@ -139,4 +139,39 @@ public class QueryController {
         return "Query executed in " + ms + "ms — " +
                rowCount + " row(s) returned";
     }
+
+    // Current session only (RAM — clears on restart)
+@GetMapping("/history/session")
+public ResponseEntity<List<Map<String, Object>>>
+        getSessionHistory() {
+    return ResponseEntity.ok(
+        historyService.getSessionHistory());
+}
+
+// Full history (DuckDB — persists across restarts)
+@GetMapping("/history/full")
+public ResponseEntity<List<Map<String, Object>>>
+        getFullHistory(
+            @RequestParam(defaultValue = "100") int limit) {
+    return ResponseEntity.ok(
+        historyService.getFullHistory(limit));
+}
+
+// Clear session only
+@DeleteMapping("/history/session")
+public ResponseEntity<Map<String, String>>
+        clearSession() {
+    historyService.clearSessionHistory();
+    return ResponseEntity.ok(
+        Map.of("message", "Session history cleared."));
+}
+
+// Clear everything
+@DeleteMapping("/history/all")
+public ResponseEntity<Map<String, String>>
+        clearAll() {
+    historyService.clearAllHistory();
+    return ResponseEntity.ok(
+        Map.of("message", "All history cleared."));
+        }
 }
