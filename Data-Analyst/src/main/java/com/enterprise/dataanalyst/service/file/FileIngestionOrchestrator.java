@@ -1,4 +1,3 @@
-// service/file/FileIngestionOrchestrator.java
 package com.enterprise.dataanalyst.service.file;
 
 import com.enterprise.dataanalyst.dto.FileUploadResponse;
@@ -17,19 +16,31 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
+ * FileIngestionOrchestrator
+ *
  * Coordinates the entire file upload pipeline.
  *
- * PIPELINE:
- * Detect MIME → Select Parser → Parse → Load to DuckDB → Register metadata
+ * PIPELINE FOR CSV:
+ * Detect MIME → CsvParser → Load DuckDB → Register
  *
- * WHY AN ORCHESTRATOR PATTERN:
- * Each step is in its own service. The orchestrator just calls them in order.
- * This makes each step independently testable and individually replaceable.
- * Future: Add a virus scan step between detection and parsing with zero impact.
+ * PIPELINE FOR EXCEL:
+ * Detect MIME → ExcelParser (ALL sheets) →
+ * For each sheet → Load DuckDB → Register
+ *
+ * WHY MULTIPLE RESPONSES FOR EXCEL:
+ * Each sheet becomes a separate DuckDB table.
+ * We return one FileUploadResponse per sheet so
+ * the UI can show each sheet as a separate loaded table.
+ *
+ * EXAMPLE:
+ * employees.xlsx with sheets "Q1", "Q2", "Q3"
+ * → tables: employees_q1, employees_q2, employees_q3
+ * → 3 FileUploadResponse objects returned
  */
 @Service
 @RequiredArgsConstructor
@@ -37,70 +48,178 @@ import java.util.stream.Collectors;
 public class FileIngestionOrchestrator {
 
     private final FileDetectionService detectionService;
-    private final List<FileParserService> parsers; // Spring auto-injects all FileParserService beans
+    private final CsvParserService csvParser;
+    private final ExcelParserService excelParser;
     private final DuckDBStorageService storageService;
     private final TableMetadataRegistry registry;
 
-    public FileUploadResponse ingest(MultipartFile file) {
+    /**
+     * Main entry point — ingest uploaded file.
+     * Returns list because Excel may have multiple sheets.
+     * CSV always returns list with single element.
+     */
+    public List<FileUploadResponse> ingest(MultipartFile file) {
         String originalFileName = file.getOriginalFilename();
-        log.info("Starting ingestion for file: {}", originalFileName);
+        log.info("Starting ingestion: {}", originalFileName);
 
         try {
-            // Step 1: Detect MIME type from content
+            // Step 1: Detect MIME type from file content
             String mimeType = detectionService.detectMimeType(file);
+            log.info("Detected MIME: {}", mimeType);
+
             if (!detectionService.isSupportedType(mimeType)) {
                 throw new UnsupportedFileTypeException(
-                        "File type '" + mimeType + "' is not supported. " +
-                        "Supported: CSV, XLS, XLSX");
+                    "File type '" + mimeType + "' is not supported. " +
+                    "Supported: CSV, XLS, XLSX");
             }
 
-            // Step 2: Select the correct parser
-            FileParserService parser = parsers.stream()
-                    .filter(p -> p.supports(mimeType))
-                    .findFirst()
-                    .orElseThrow(() -> new UnsupportedFileTypeException(
-                            "No parser available for MIME type: " + mimeType));
+            // Step 2: Route to correct parser
+            if (isExcelType(mimeType)) {
+                return ingestExcel(file);
+            } else {
+                return ingestCsv(file, mimeType);
+            }
 
-            // Step 3: Compute sanitized table name
-            String tableName = TableNameSanitizer.sanitize(originalFileName);
-            log.info("Table name for '{}': '{}'", originalFileName, tableName);
+        } catch (UnsupportedFileTypeException e) {
+            throw e; // rethrow as-is
+        } catch (IOException e) {
+            throw new FileProcessingException(
+                "Failed to read file: " + originalFileName, e);
+        } catch (SQLException e) {
+            throw new FileProcessingException(
+                "Failed to load into database: " + e.getMessage(), e);
+        }
+    }
 
-            // Step 4: Parse the file
-            ParsedFileData parsedData = parser.parse(file, tableName);
+    // ─────────────────────────────────────────────────────────────
+    // CSV INGESTION
+    // ─────────────────────────────────────────────────────────────
 
-            // Step 5: Load into DuckDB
-            storageService.loadTable(tableName, parsedData);
+    private List<FileUploadResponse> ingestCsv(
+            MultipartFile file, String mimeType)
+            throws IOException, SQLException {
 
-            // Step 6: Register metadata for intent resolution
-            TableMetadata metadata = TableMetadata.builder()
-                    .tableName(tableName)
-                    .originalFileName(originalFileName)
-                    .fileType(parsedData.getDetectedFileType())
-                    .rowCount(parsedData.getRows().size())
-                    .columns(parsedData.getColumns())
-                    .uploadedAt(LocalDateTime.now())
-                    .build();
+        String originalFileName = file.getOriginalFilename();
+        String tableName = TableNameSanitizer.sanitize(originalFileName);
+
+        log.info("Parsing CSV → table: '{}'", tableName);
+
+        // Parse
+        ParsedFileData parsedData = csvParser.parse(file, tableName);
+
+        // Load into DuckDB
+        storageService.loadTable(tableName, parsedData);
+
+        // Register metadata
+        TableMetadata metadata = buildMetadata(
+            tableName, parsedData, null);
+        registry.register(metadata);
+
+        log.info("CSV ingestion complete: '{}' → '{}', {} rows",
+                originalFileName, tableName,
+                parsedData.getRows().size());
+
+        // Return single-element list
+        List<FileUploadResponse> responses = new ArrayList<>();
+        responses.add(buildResponse(tableName, parsedData, null));
+        return responses;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // EXCEL INGESTION — MULTI-SHEET
+    // ─────────────────────────────────────────────────────────────
+
+    private List<FileUploadResponse> ingestExcel(MultipartFile file)
+            throws IOException, SQLException {
+
+        String originalFileName = file.getOriginalFilename();
+        String baseFileName = originalFileName
+                .replaceAll("\\.[^.]+$", ""); // remove extension
+
+        log.info("Parsing Excel (all sheets): {}", originalFileName);
+
+        // Parse ALL sheets — returns one ParsedFileData per sheet
+        List<ParsedFileData> sheets = excelParser.parseAllSheets(file);
+
+        if (sheets.isEmpty()) {
+            throw new FileProcessingException(
+                "Excel file has no readable sheets: " + originalFileName);
+        }
+
+        List<FileUploadResponse> responses = new ArrayList<>();
+
+        for (ParsedFileData sheetData : sheets) {
+            // Table name = basefile_sheetname
+            // e.g., employees_q1, employees_q2
+            String sheetName = sheetData.getSheetName();
+            String tableName = TableNameSanitizer.sanitize(
+                baseFileName + "_" + sheetName);
+
+            log.info("Loading sheet '{}' → table '{}'",
+                    sheetName, tableName);
+
+            // Load each sheet as separate DuckDB table
+            storageService.loadTable(tableName, sheetData);
+
+            // Register each sheet separately
+            TableMetadata metadata = buildMetadata(
+                tableName, sheetData, sheetName);
             registry.register(metadata);
 
-            log.info("Ingestion complete: '{}' → table '{}', {} rows, {} columns",
-                    originalFileName, tableName, parsedData.getRows().size(),
-                    parsedData.getColumns().size());
+            responses.add(buildResponse(
+                tableName, sheetData, sheetName));
 
-            return FileUploadResponse.builder()
-                    .tableName(tableName)
-                    .originalFileName(originalFileName)
-                    .fileType(parsedData.getDetectedFileType())
-                    .rowCount(parsedData.getRows().size())
-                    .columns(parsedData.getColumns().stream()
-                            .map(c -> c.getColumnName() + " (" + c.getDataType() + ")")
-                            .collect(Collectors.toList()))
-                    .message("File uploaded and ready to query.")
-                    .build();
-
-        } catch (IOException e) {
-            throw new FileProcessingException("Failed to read file: " + originalFileName, e);
-        } catch (SQLException e) {
-            throw new FileProcessingException("Failed to load data into database: " + e.getMessage(), e);
+            log.info("Sheet '{}' loaded: {} rows, {} cols",
+                    sheetName,
+                    sheetData.getRows().size(),
+                    sheetData.getColumns().size());
         }
+
+        log.info("Excel ingestion complete: {} sheet(s) loaded",
+                responses.size());
+        return responses;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // HELPERS
+    // ─────────────────────────────────────────────────────────────
+
+    private boolean isExcelType(String mimeType) {
+        return mimeType.contains("ms-excel") ||
+               mimeType.contains("spreadsheetml") ||
+               mimeType.contains("tika-ooxml");
+    }
+
+    private TableMetadata buildMetadata(String tableName,
+                                         ParsedFileData data,
+                                         String sheetName) {
+        return TableMetadata.builder()
+                .tableName(tableName)
+                .originalFileName(data.getOriginalFileName())
+                .fileType(data.getDetectedFileType())
+                .rowCount(data.getRows().size())
+                .columns(data.getColumns())
+                .uploadedAt(LocalDateTime.now())
+                .build();
+    }
+
+    private FileUploadResponse buildResponse(String tableName,
+                                              ParsedFileData data,
+                                              String sheetName) {
+        String message = sheetName != null
+            ? "Sheet '" + sheetName + "' loaded successfully."
+            : "File loaded successfully.";
+
+        return FileUploadResponse.builder()
+                .tableName(tableName)
+                .originalFileName(data.getOriginalFileName())
+                .fileType(data.getDetectedFileType())
+                .rowCount(data.getRows().size())
+                .columns(data.getColumns().stream()
+                    .map(c -> c.getColumnName() +
+                              " (" + c.getDataType() + ")")
+                    .collect(Collectors.toList()))
+                .message(message)
+                .build();
     }
 }
