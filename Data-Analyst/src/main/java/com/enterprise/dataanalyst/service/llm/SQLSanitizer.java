@@ -78,6 +78,7 @@ public class SQLSanitizer {
             throw new QueryProcessingException(
                     "Query contains disallowed operations.");
         }
+        
 
         // Step 4: Verify referenced tables exist in our registry
         validateTableReferences(sql);
@@ -152,4 +153,76 @@ public class SQLSanitizer {
                             "Please mention the file name in your query.");
         }
     }
+
+
+/**
+ * Post-process SQL to make string comparisons case-insensitive.
+ *
+ * WHY POST-PROCESS:
+ * LLM sometimes ignores LOWER() instruction.
+ * We apply it automatically on WHERE clauses.
+ *
+ * Transforms:
+ * WHERE col = 'value'       → WHERE LOWER(col) = LOWER('value')
+ * WHERE col = "value"       → WHERE LOWER(col) = LOWER('value')
+ * WHERE col LIKE 'val%'     → WHERE LOWER(col) LIKE LOWER('val%')
+ */
+private String makeCaseInsensitive(String sql) {
+    if (sql == null) return null;
+
+    // Pattern: column_name = 'string_value' or column = "string"
+    // Replace with LOWER(column_name) = LOWER('string_value')
+    // But NOT for numbers, dates, or already wrapped LOWER()
+
+    // Match: word = 'string' or word = "string"
+    // where word doesn't start with LOWER(
+    java.util.regex.Pattern whereEq = java.util.regex.Pattern.compile(
+        "(?i)(?<!LOWER\\()\\b([a-zA-Z_][a-zA-Z0-9_.]*)" +
+        "\\s*(=|!=|<>|LIKE)\\s*('[^']*'|\"[^\"]*\")"
+    );
+
+    java.util.regex.Matcher m = whereEq.matcher(sql);
+    StringBuffer sb = new StringBuffer();
+
+    while (m.find()) {
+        String col   = m.group(1);
+        String op    = m.group(2);
+        String value = m.group(3);
+
+        // Skip if already has LOWER
+        if (col.toUpperCase().startsWith("LOWER")) {
+            m.appendReplacement(sb, m.group(0));
+            continue;
+        }
+
+        // Skip SQL keywords
+        if (isSQLKeyword(col)) {
+            m.appendReplacement(sb, m.group(0));
+            continue;
+        }
+
+        // Normalize value quotes to single quotes
+        String normalizedValue = value
+                .replace("\"", "'");
+
+        String replacement = "LOWER(" + col + ") " +
+                             op + " LOWER(" + normalizedValue + ")";
+        m.appendReplacement(sb,
+            java.util.regex.Matcher.quoteReplacement(replacement));
+    }
+    m.appendTail(sb);
+
+    return sb.toString();
+}
+
+private boolean isSQLKeyword(String word) {
+    java.util.Set<String> keywords = java.util.Set.of(
+        "SELECT", "FROM", "WHERE", "AND", "OR", "NOT",
+        "IN", "IS", "NULL", "TRUE", "FALSE", "AS",
+        "ON", "JOIN", "LEFT", "RIGHT", "INNER", "OUTER",
+        "GROUP", "ORDER", "HAVING", "LIMIT", "OFFSET",
+        "COUNT", "SUM", "AVG", "MAX", "MIN", "DISTINCT"
+    );
+    return keywords.contains(word.toUpperCase());
+}
 }
