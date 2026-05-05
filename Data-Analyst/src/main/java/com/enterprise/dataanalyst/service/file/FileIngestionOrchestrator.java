@@ -5,6 +5,7 @@ import com.enterprise.dataanalyst.exception.FileProcessingException;
 import com.enterprise.dataanalyst.exception.UnsupportedFileTypeException;
 import com.enterprise.dataanalyst.model.ParsedFileData;
 import com.enterprise.dataanalyst.model.TableMetadata;
+import com.enterprise.dataanalyst.service.profiler.DataProfilerService;
 import com.enterprise.dataanalyst.service.registry.TableMetadataRegistry;
 import com.enterprise.dataanalyst.service.storage.DuckDBStorageService;
 import com.enterprise.dataanalyst.util.TableNameSanitizer;
@@ -18,6 +19,7 @@ import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -52,6 +54,7 @@ public class FileIngestionOrchestrator {
     private final ExcelParserService excelParser;
     private final DuckDBStorageService storageService;
     private final TableMetadataRegistry registry;
+    private final DataProfilerService dataProfilerService;
 
     /**
      * Main entry point — ingest uploaded file.
@@ -69,8 +72,8 @@ public class FileIngestionOrchestrator {
 
             if (!detectionService.isSupportedType(mimeType)) {
                 throw new UnsupportedFileTypeException(
-                    "File type '" + mimeType + "' is not supported. " +
-                    "Supported: CSV, XLS, XLSX");
+                        "File type '" + mimeType + "' is not supported. " +
+                        "Supported: CSV, XLS, XLSX");
             }
 
             // Step 2: Route to correct parser
@@ -84,10 +87,10 @@ public class FileIngestionOrchestrator {
             throw e; // rethrow as-is
         } catch (IOException e) {
             throw new FileProcessingException(
-                "Failed to read file: " + originalFileName, e);
+                    "Failed to read file: " + originalFileName, e);
         } catch (SQLException e) {
             throw new FileProcessingException(
-                "Failed to load into database: " + e.getMessage(), e);
+                    "Failed to load into database: " + e.getMessage(), e);
         }
     }
 
@@ -112,8 +115,11 @@ public class FileIngestionOrchestrator {
 
         // Register metadata
         TableMetadata metadata = buildMetadata(
-            tableName, parsedData, null);
+                tableName, parsedData, null);
         registry.register(metadata);
+
+        // Profile actual data values for smart query resolution
+        dataProfilerService.profileTable(tableName);
 
         log.info("CSV ingestion complete: '{}' → '{}', {} rows",
                 originalFileName, tableName,
@@ -125,59 +131,82 @@ public class FileIngestionOrchestrator {
         return responses;
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // EXCEL INGESTION — MULTI-SHEET
-    // ─────────────────────────────────────────────────────────────
-
     private List<FileUploadResponse> ingestExcel(MultipartFile file)
             throws IOException, SQLException {
 
         String originalFileName = file.getOriginalFilename();
-        String baseFileName = originalFileName
-                .replaceAll("\\.[^.]+$", ""); // remove extension
+        String baseFileName = Objects.requireNonNull(originalFileName)
+                .replaceAll("\\.[^.]+$", "")
+                .toLowerCase()
+                .replaceAll("[^a-z0-9]", "_"); // sanitize
 
-        log.info("Parsing Excel (all sheets): {}", originalFileName);
-
-        // Parse ALL sheets — returns one ParsedFileData per sheet
         List<ParsedFileData> sheets = excelParser.parseAllSheets(file);
-
-        if (sheets.isEmpty()) {
-            throw new FileProcessingException(
-                "Excel file has no readable sheets: " + originalFileName);
-        }
 
         List<FileUploadResponse> responses = new ArrayList<>();
 
         for (ParsedFileData sheetData : sheets) {
-            // Table name = basefile_sheetname
-            // e.g., employees_q1, employees_q2
             String sheetName = sheetData.getSheetName();
-            String tableName = TableNameSanitizer.sanitize(
-                baseFileName + "_" + sheetName);
 
-            log.info("Loading sheet '{}' → table '{}'",
-                    sheetName, tableName);
+            // WHY SHORTENED PREFIX:
+            // Pure sheet name → conflict between files
+            // Full filename_sheet → too long and ugly
+            // Short prefix (first 8 chars) + sheet → unique + readable
+            //
+            // dummydata.xlsx  → sheet users  → dummydat_users
+            // dummydata2.xlsx → sheet users  → dummydat_users ← still conflict!
+            //
+            // Better: use hash suffix for uniqueness
+            String prefix = baseFileName.length() > 10
+                    ? baseFileName.substring(0, 10)
+                    : baseFileName;
 
-            // Load each sheet as separate DuckDB table
-            storageService.loadTable(tableName, sheetData);
+            String candidateTable = TableNameSanitizer.sanitize(
+                    prefix + "_" + sheetName);
 
-            // Register each sheet separately
+            // If table name already exists — add numeric suffix
+            String finalTableName = resolveTableNameConflict(
+                    candidateTable);
+
+            log.info("Sheet '{}' from '{}' → table '{}'",
+                    sheetName, originalFileName, finalTableName);
+
+            storageService.loadTable(finalTableName, sheetData);
+
             TableMetadata metadata = buildMetadata(
-                tableName, sheetData, sheetName);
+                    finalTableName, sheetData, sheetName);
             registry.register(metadata);
 
-            responses.add(buildResponse(
-                tableName, sheetData, sheetName));
+            // Profile actual data values for smart query resolution
+            dataProfilerService.profileTable(finalTableName);
 
-            log.info("Sheet '{}' loaded: {} rows, {} cols",
-                    sheetName,
-                    sheetData.getRows().size(),
-                    sheetData.getColumns().size());
+            responses.add(buildResponse(
+                    finalTableName, sheetData, sheetName));
         }
 
-        log.info("Excel ingestion complete: {} sheet(s) loaded",
-                responses.size());
         return responses;
+    }
+
+    /**
+     * If table name already taken — append _2, _3, etc.
+     *
+     * dummydat_users exists → try dummydat_users_2
+     * dummydat_users_2 exists → try dummydat_users_3
+     */
+    private String resolveTableNameConflict(String candidate) {
+        if (registry.findByTableName(candidate).isEmpty()) {
+            return candidate; // no conflict
+        }
+
+        int suffix = 2;
+        while (true) {
+            String withSuffix = candidate + "_" + suffix;
+            if (registry.findByTableName(withSuffix).isEmpty()) {
+                log.info("Table name conflict resolved: '{}' → '{}'",
+                        candidate, withSuffix);
+                return withSuffix;
+            }
+            suffix++;
+        }
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -191,8 +220,8 @@ public class FileIngestionOrchestrator {
     }
 
     private TableMetadata buildMetadata(String tableName,
-                                         ParsedFileData data,
-                                         String sheetName) {
+                                        ParsedFileData data,
+                                        String sheetName) {
         return TableMetadata.builder()
                 .tableName(tableName)
                 .originalFileName(data.getOriginalFileName())
@@ -204,11 +233,11 @@ public class FileIngestionOrchestrator {
     }
 
     private FileUploadResponse buildResponse(String tableName,
-                                              ParsedFileData data,
-                                              String sheetName) {
+                                             ParsedFileData data,
+                                             String sheetName) {
         String message = sheetName != null
-            ? "Sheet '" + sheetName + "' loaded successfully."
-            : "File loaded successfully.";
+                ? "Sheet '" + sheetName + "' loaded successfully."
+                : "File loaded successfully.";
 
         return FileUploadResponse.builder()
                 .tableName(tableName)
@@ -216,9 +245,9 @@ public class FileIngestionOrchestrator {
                 .fileType(data.getDetectedFileType())
                 .rowCount(data.getRows().size())
                 .columns(data.getColumns().stream()
-                    .map(c -> c.getColumnName() +
-                              " (" + c.getDataType() + ")")
-                    .collect(Collectors.toList()))
+                        .map(c -> c.getColumnName() +
+                                  " (" + c.getDataType() + ")")
+                        .collect(Collectors.toList()))
                 .message(message)
                 .build();
     }

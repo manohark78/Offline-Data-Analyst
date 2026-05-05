@@ -100,4 +100,23 @@ public class QueryExecutorService {
                 })
                 .collect(Collectors.toList());
     }
+
+    public List<Map<String, Object>> executeRaw(String sql) {
+        log.debug("Executing: {}", sql);
+
+        // Remove trailing semicolon — some DuckDB versions
+        // handle it differently via JDBC
+        String cleanSql = sql.trim();
+        if (cleanSql.endsWith(";")) {
+            cleanSql = cleanSql.substring(0, cleanSql.length() - 1);
+        }
+
+        try {
+            return storageService.executeQuery(cleanSql);
+        } catch (SQLException e) {
+            log.error("DuckDB error for SQL [{}]: {}", cleanSql, e.getMessage());
+            throw new QueryProcessingException(
+                    "Database execution failed: " + e.getMessage(), e);
+        }
+    }
 }

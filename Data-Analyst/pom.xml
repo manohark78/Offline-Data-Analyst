@@ -109,20 +109,11 @@
 			<optional>true</optional>
 		</dependency>
 
-		<!-- ONNX Runtime — runs MiniLM transformer model in JVM -->
 		<dependency>
-			<groupId>com.microsoft.onnxruntime</groupId>
-			<artifactId>onnxruntime</artifactId>
-			<version>1.17.0</version>
+			<groupId>de.kherud</groupId>
+			<artifactId>llama</artifactId>
+			<version>4.2.0</version>
 		</dependency>
-
-		<!-- DJL HuggingFace Tokenizers — Java port of HF tokenizer -->
-		<dependency>
-			<groupId>ai.djl.huggingface</groupId>
-			<artifactId>tokenizers</artifactId>
-			<version>0.26.0</version>
-		</dependency>
-
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

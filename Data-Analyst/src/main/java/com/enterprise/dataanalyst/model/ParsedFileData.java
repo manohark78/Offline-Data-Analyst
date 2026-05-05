@@ -28,4 +28,5 @@ public class ParsedFileData {
     private List<Map<String, String>> rows;
     private String originalFileName;
     private String detectedFileType;
+    private String sheetName;
 }

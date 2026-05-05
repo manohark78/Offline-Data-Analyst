@@ -2,8 +2,12 @@
 package com.enterprise.dataanalyst.service.storage;
 
 import com.enterprise.dataanalyst.model.ColumnMetadata;
+import com.enterprise.dataanalyst.model.ColumnProfile;
 import com.enterprise.dataanalyst.model.ParsedFileData;
 import com.enterprise.dataanalyst.model.TableMetadata;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -40,6 +44,7 @@ public class DuckDBStorageService {
 
     private final Connection duckDbConnection;
     private final ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final int BATCH_SIZE = 1000;
 
@@ -169,19 +174,6 @@ public class DuckDBStorageService {
         }
     }
 
-    /**
-     * Batch-insert all rows into the table.
-     *
-     * WHY PREPARED STATEMENT + BATCH:
-     * PreparedStatement pre-compiles the INSERT. Each addBatch() call binds
-     * parameters without re-parsing SQL. executeBatch() sends all rows in one
-     * round trip (even though DuckDB is local, this still avoids per-row overhead).
-     *
-     * WHY WE CAST NULL EXPLICITLY:
-     * setNull(i, Types.VARCHAR) is necessary because JDBC needs the SQL type
-     * to properly encode the null. Calling setObject(i, null) can cause type
-     * mismatch errors with some JDBC drivers.
-     */
     private void insertRows(String tableName,
                             List<ColumnMetadata> columns,
                             List<Map<String, String>> rows) throws SQLException {
@@ -291,6 +283,32 @@ public class DuckDBStorageService {
             pstmt.executeBatch();
         }
     }
+    public void dropTable(String tableName) throws SQLException {
+        rwLock.writeLock().lock();
+        try (Statement stmt = duckDbConnection.createStatement()) {
+            // Drop actual data table
+            stmt.execute("DROP TABLE IF EXISTS \"" + tableName + "\"");
+
+            // Clean system registry tables
+            try (PreparedStatement ps = duckDbConnection.prepareStatement(
+                    "DELETE FROM _sys_table_registry " +
+                    "WHERE table_name = ?")) {
+                ps.setString(1, tableName);
+                ps.executeUpdate();
+            }
+
+            try (PreparedStatement ps = duckDbConnection.prepareStatement(
+                    "DELETE FROM _sys_column_registry " +
+                    "WHERE table_name = ?")) {
+                ps.setString(1, tableName);
+                ps.executeUpdate();
+            }
+
+            log.info("Dropped table '{}' from DuckDB.", tableName);
+        } finally {
+            rwLock.writeLock().unlock();
+        }
+    }
 
     private List<ColumnMetadata> loadColumnMetadata(String tableName) throws SQLException {
         List<ColumnMetadata> columns = new ArrayList<>();
@@ -311,5 +329,180 @@ public class DuckDBStorageService {
             }
         }
         return columns;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // COLUMN PROFILING SUPPORT
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Read a chunk of rows from a table for profiling.
+     * Used by DataProfilerService to scan data in batches.
+     *
+     * WHY CHUNKS: Avoid loading entire table into memory.
+     * A 1M-row table would OOM if loaded all at once.
+     * Chunks of 200 rows are safe and fast.
+     */
+    public List<Map<String, Object>> scanChunk(String tableName,
+                                                int limit, int offset) throws SQLException {
+        rwLock.readLock().lock();
+        try {
+            String sql = "SELECT * FROM \"" + tableName + "\" LIMIT " + limit
+                       + " OFFSET " + offset;
+            try (Statement stmt = duckDbConnection.createStatement();
+                 ResultSet rs = stmt.executeQuery(sql)) {
+
+                List<Map<String, Object>> results = new ArrayList<>();
+                ResultSetMetaData meta = rs.getMetaData();
+                int colCount = meta.getColumnCount();
+
+                while (rs.next()) {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    for (int i = 1; i <= colCount; i++) {
+                        row.put(meta.getColumnLabel(i), rs.getObject(i));
+                    }
+                    results.add(row);
+                }
+                return results;
+            }
+        } finally {
+            rwLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Get total row count for a table.
+     * Used by DataProfilerService to know when to stop scanning.
+     */
+    public long getRowCount(String tableName) throws SQLException {
+        rwLock.readLock().lock();
+        try (Statement stmt = duckDbConnection.createStatement();
+             ResultSet rs = stmt.executeQuery(
+                     "SELECT COUNT(*) FROM \"" + tableName + "\"")) {
+            rs.next();
+            return rs.getLong(1);
+        } finally {
+            rwLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Persist column profiles to DuckDB system table.
+     * Uses INSERT OR REPLACE so re-profiling overwrites old data.
+     */
+    public void persistColumnProfiles(String tableName,
+                                       List<ColumnProfile> profiles) throws SQLException {
+        rwLock.writeLock().lock();
+        try {
+            // Clear existing profiles for this table
+            try (PreparedStatement del = duckDbConnection.prepareStatement(
+                    "DELETE FROM _sys_column_profiles WHERE table_name = ?")) {
+                del.setString(1, tableName);
+                del.executeUpdate();
+            }
+
+            String insertSql = "INSERT INTO _sys_column_profiles " +
+                    "(table_name, column_name, data_type, distinct_count, null_count, " +
+                    "total_count, min_value, max_value, dominant_pattern, " +
+                    "sample_values, distinct_values) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+            try (PreparedStatement pstmt = duckDbConnection.prepareStatement(insertSql)) {
+                for (ColumnProfile profile : profiles) {
+                    pstmt.setString(1, profile.getTableName());
+                    pstmt.setString(2, profile.getColumnName());
+                    pstmt.setString(3, profile.getDataType());
+                    pstmt.setLong(4, profile.getDistinctCount());
+                    pstmt.setLong(5, profile.getNullCount());
+                    pstmt.setLong(6, profile.getTotalCount());
+                    pstmt.setString(7, profile.getMinValue());
+                    pstmt.setString(8, profile.getMaxValue());
+                    pstmt.setString(9, profile.getDominantPattern());
+
+                    // Serialize lists/sets as JSON
+                    pstmt.setString(10, toJson(profile.getSampleValues()));
+                    pstmt.setString(11, toJson(
+                            profile.getDistinctValues() != null
+                                    ? new ArrayList<>(profile.getDistinctValues())
+                                    : List.of()));
+                    pstmt.addBatch();
+                }
+                pstmt.executeBatch();
+            }
+
+            log.info("Persisted {} column profiles for table '{}'",
+                    profiles.size(), tableName);
+        } finally {
+            rwLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Load all column profiles from DuckDB system table.
+     * Called at startup to restore profiling state.
+     */
+    public List<ColumnProfile> loadAllColumnProfiles() throws SQLException {
+        rwLock.readLock().lock();
+        try {
+            List<ColumnProfile> profiles = new ArrayList<>();
+            String sql = "SELECT * FROM _sys_column_profiles ORDER BY table_name, column_name";
+
+            try (Statement stmt = duckDbConnection.createStatement();
+                 ResultSet rs = stmt.executeQuery(sql)) {
+                while (rs.next()) {
+                    profiles.add(ColumnProfile.builder()
+                            .tableName(rs.getString("table_name"))
+                            .columnName(rs.getString("column_name"))
+                            .dataType(rs.getString("data_type"))
+                            .distinctCount(rs.getLong("distinct_count"))
+                            .nullCount(rs.getLong("null_count"))
+                            .totalCount(rs.getLong("total_count"))
+                            .minValue(rs.getString("min_value"))
+                            .maxValue(rs.getString("max_value"))
+                            .dominantPattern(rs.getString("dominant_pattern"))
+                            .sampleValues(fromJsonList(rs.getString("sample_values")))
+                            .distinctValues(fromJsonSet(rs.getString("distinct_values")))
+                            .build());
+                }
+            }
+
+            log.info("Loaded {} column profiles from persistent storage.", profiles.size());
+            return profiles;
+        } finally {
+            rwLock.readLock().unlock();
+        }
+    }
+
+    // ─── JSON helpers for profile serialization ──────────────────
+
+    private String toJson(Object obj) {
+        try {
+            return objectMapper.writeValueAsString(obj);
+        } catch (JsonProcessingException e) {
+            log.warn("JSON serialization failed: {}", e.getMessage());
+            return "[]";
+        }
+    }
+
+    private List<String> fromJsonList(String json) {
+        if (json == null || json.isBlank()) return List.of();
+        try {
+            return objectMapper.readValue(json, new TypeReference<List<String>>() {});
+        } catch (JsonProcessingException e) {
+            log.warn("JSON deserialization failed: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    private Set<String> fromJsonSet(String json) {
+        if (json == null || json.isBlank()) return Set.of();
+        try {
+            List<String> list = objectMapper.readValue(json,
+                    new TypeReference<List<String>>() {});
+            return new LinkedHashSet<>(list);
+        } catch (JsonProcessingException e) {
+            log.warn("JSON deserialization failed: {}", e.getMessage());
+            return Set.of();
+        }
     }
 }

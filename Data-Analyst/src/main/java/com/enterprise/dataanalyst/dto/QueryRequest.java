@@ -11,4 +11,5 @@ public class QueryRequest {
     @NotBlank(message = "Query cannot be empty")
     @Size(max = 500, message = "Query too long")
     private String query;
+    private String sessionId;
 }

@@ -106,4 +106,9 @@ public class TableMetadataRegistry {
     public boolean isEmpty() {
         return registry.isEmpty();
     }
+
+    public void remove(String tableName) {
+        registry.remove(tableName);
+        log.debug("Removed '{}' from registry.", tableName);
+    }
 }

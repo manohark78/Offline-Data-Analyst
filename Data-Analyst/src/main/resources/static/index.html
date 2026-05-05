@@ -1,375 +1,375 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Offline Data Analyst</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI',sans-serif;background:#0f0f1a;
-     color:#e0e0e0;display:flex;height:100vh;overflow:hidden}
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+    <title>Offline Data Analyst</title>
+    <style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:'Segoe UI',sans-serif;background:#0f0f1a;
+            color:#e0e0e0;display:flex;height:100vh;overflow:hidden}
 
-/* ── SIDEBAR ─────────────────────────────────────────────── */
-#sidebar{
-  width:260px;flex-shrink:0;background:#111128;
-  border-right:1px solid #2d2d4e;display:flex;
-  flex-direction:column;overflow:hidden}
+        /* ── SIDEBAR ─────────────────────────────────────────────── */
+        #sidebar{
+            width:260px;flex-shrink:0;background:#111128;
+            border-right:1px solid #2d2d4e;display:flex;
+            flex-direction:column;overflow:hidden}
 
-.sb-header{
-  padding:16px;border-bottom:1px solid #2d2d4e;
-  display:flex;align-items:center;gap:10px}
-.sb-header .logo{font-size:1.1rem;color:#818cf8;font-weight:600}
-.sb-header .sub{font-size:0.7rem;color:#4b5563}
+        .sb-header{
+            padding:16px;border-bottom:1px solid #2d2d4e;
+            display:flex;align-items:center;gap:10px}
+        .sb-header .logo{font-size:1.1rem;color:#818cf8;font-weight:600}
+        .sb-header .sub{font-size:0.7rem;color:#4b5563}
 
-.new-session-btn{
-  margin:12px;padding:10px;background:#1e1e3f;
-  border:1px dashed #4f46e5;border-radius:8px;
-  color:#818cf8;cursor:pointer;font-size:0.85rem;
-  display:flex;align-items:center;justify-content:center;
-  gap:8px;transition:all 0.2s}
-.new-session-btn:hover{background:#252550;border-color:#818cf8}
+        .new-session-btn{
+            margin:12px;padding:10px;background:#1e1e3f;
+            border:1px dashed #4f46e5;border-radius:8px;
+            color:#818cf8;cursor:pointer;font-size:0.85rem;
+            display:flex;align-items:center;justify-content:center;
+            gap:8px;transition:all 0.2s}
+        .new-session-btn:hover{background:#252550;border-color:#818cf8}
 
-.sb-section-label{
-  padding:6px 16px;font-size:0.7rem;color:#4b5563;
-  text-transform:uppercase;letter-spacing:0.05em}
+        .sb-section-label{
+            padding:6px 16px;font-size:0.7rem;color:#4b5563;
+            text-transform:uppercase;letter-spacing:0.05em}
 
-#sessionsList{flex:1;overflow-y:auto;padding:4px 8px}
+        #sessionsList{flex:1;overflow-y:auto;padding:4px 8px}
 
-.session-item{
-  padding:10px 12px;border-radius:8px;cursor:pointer;
-  transition:all 0.15s;margin-bottom:4px;
-  border:1px solid transparent;position:relative}
-.session-item:hover{background:#1a1a2e;border-color:#2d2d4e}
-.session-item.active{
-  background:#1e1e3f;border-color:#4f46e5}
-.session-item .s-name{
-  font-size:0.85rem;color:#e0e0e0;font-weight:500;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  padding-right:24px}
-.session-item.active .s-name{color:#818cf8}
-.session-item .s-meta{
-  font-size:0.7rem;color:#4b5563;margin-top:3px;
-  display:flex;gap:8px}
-.session-item .s-del{
-  position:absolute;right:8px;top:50%;transform:translateY(-50%);
-  background:none;border:none;color:#4b5563;cursor:pointer;
-  font-size:0.8rem;padding:2px 4px;border-radius:4px;
-  opacity:0;transition:opacity 0.15s}
-.session-item:hover .s-del{opacity:1}
-.session-item .s-del:hover{color:#fca5a5;background:#450a0a}
+        .session-item{
+            padding:10px 12px;border-radius:8px;cursor:pointer;
+            transition:all 0.15s;margin-bottom:4px;
+            border:1px solid transparent;position:relative}
+        .session-item:hover{background:#1a1a2e;border-color:#2d2d4e}
+        .session-item.active{
+            background:#1e1e3f;border-color:#4f46e5}
+        .session-item .s-name{
+            font-size:0.85rem;color:#e0e0e0;font-weight:500;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+            padding-right:24px}
+        .session-item.active .s-name{color:#818cf8}
+        .session-item .s-meta{
+            font-size:0.7rem;color:#4b5563;margin-top:3px;
+            display:flex;gap:8px}
+        .session-item .s-del{
+            position:absolute;right:8px;top:50%;transform:translateY(-50%);
+            background:none;border:none;color:#4b5563;cursor:pointer;
+            font-size:0.8rem;padding:2px 4px;border-radius:4px;
+            opacity:0;transition:opacity 0.15s}
+        .session-item:hover .s-del{opacity:1}
+        .session-item .s-del:hover{color:#fca5a5;background:#450a0a}
 
-/* ── MAIN CONTENT ────────────────────────────────────────── */
-#main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+        /* ── MAIN CONTENT ────────────────────────────────────────── */
+        #main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 
-.main-topbar{
-  padding:12px 20px;border-bottom:1px solid #2d2d4e;
-  display:flex;align-items:center;gap:12px;
-  background:#111128;flex-shrink:0}
-.session-title{font-size:0.95rem;color:#e0e0e0;font-weight:500;flex:1}
-.offline-badge{
-  font-size:0.7rem;padding:3px 10px;background:#064e3b;
-  color:#6ee7b7;border-radius:10px;border:1px solid #065f46}
-.upload-btn{
-  background:#1e1e3f;border:1px solid #4f46e5;
-  color:#818cf8;padding:7px 14px;border-radius:6px;
-  cursor:pointer;font-size:0.82rem;display:flex;
-  align-items:center;gap:6px;transition:all 0.2s}
-.upload-btn:hover{background:#252550}
+        .main-topbar{
+            padding:12px 20px;border-bottom:1px solid #2d2d4e;
+            display:flex;align-items:center;gap:12px;
+            background:#111128;flex-shrink:0}
+        .session-title{font-size:0.95rem;color:#e0e0e0;font-weight:500;flex:1}
+        .offline-badge{
+            font-size:0.7rem;padding:3px 10px;background:#064e3b;
+            color:#6ee7b7;border-radius:10px;border:1px solid #065f46}
+        .upload-btn{
+            background:#1e1e3f;border:1px solid #4f46e5;
+            color:#818cf8;padding:7px 14px;border-radius:6px;
+            cursor:pointer;font-size:0.82rem;display:flex;
+            align-items:center;gap:6px;transition:all 0.2s}
+        .upload-btn:hover{background:#252550}
 
-/* Files chips row */
-#filesRow{
-  padding:10px 20px;border-bottom:1px solid #1a1a2e;
-  display:flex;flex-wrap:wrap;gap:8px;min-height:44px;
-  align-items:center;flex-shrink:0}
-#filesRowEmpty{font-size:0.78rem;color:#374151}
+        /* Files chips row */
+        #filesRow{
+            padding:10px 20px;border-bottom:1px solid #1a1a2e;
+            display:flex;flex-wrap:wrap;gap:8px;min-height:44px;
+            align-items:center;flex-shrink:0}
+        #filesRowEmpty{font-size:0.78rem;color:#374151}
 
-.file-chip{
-  background:#1a1a2e;border:1px solid #2d2d4e;
-  border-radius:20px;padding:4px 10px 4px 8px;
-  font-size:0.78rem;display:flex;align-items:center;
-  gap:6px;transition:border-color 0.2s;max-width:200px}
-.file-chip:hover{border-color:#4f46e5}
-.file-chip .chip-icon{font-size:0.9rem}
-.file-chip .chip-name{
-  color:#c4c4d4;white-space:nowrap;overflow:hidden;
-  text-overflow:ellipsis;max-width:120px}
-.file-chip .chip-rows{color:#4b5563;font-size:0.7rem}
-.chip-del{
-  background:none;border:none;color:#4b5563;
-  cursor:pointer;padding:0 2px;font-size:0.75rem;
-  margin-left:2px;transition:color 0.15s}
-.chip-del:hover{color:#fca5a5}
+        .file-chip{
+            background:#1a1a2e;border:1px solid #2d2d4e;
+            border-radius:20px;padding:4px 10px 4px 8px;
+            font-size:0.78rem;display:flex;align-items:center;
+            gap:6px;transition:border-color 0.2s;max-width:200px}
+        .file-chip:hover{border-color:#4f46e5}
+        .file-chip .chip-icon{font-size:0.9rem}
+        .file-chip .chip-name{
+            color:#c4c4d4;white-space:nowrap;overflow:hidden;
+            text-overflow:ellipsis;max-width:120px}
+        .file-chip .chip-rows{color:#4b5563;font-size:0.7rem}
+        .chip-del{
+            background:none;border:none;color:#4b5563;
+            cursor:pointer;padding:0 2px;font-size:0.75rem;
+            margin-left:2px;transition:color 0.15s}
+        .chip-del:hover{color:#fca5a5}
 
-/* Content scroll area */
-#contentArea{flex:1;overflow-y:auto;padding:20px;
-              display:flex;flex-direction:column;gap:16px}
+        /* Content scroll area */
+        #contentArea{flex:1;overflow-y:auto;padding:20px;
+            display:flex;flex-direction:column;gap:16px}
 
-/* Query box */
-.query-panel{background:#1a1a2e;border:1px solid #2d2d4e;
-             border-radius:10px;padding:16px}
-.query-panel h3{font-size:0.8rem;color:#4b5563;
-                margin-bottom:10px;font-weight:400}
-.query-row{display:flex;gap:10px}
-.query-input{
-  flex:1;background:#0f0f1a;border:1px solid #4f46e5;
-  color:#e0e0e0;padding:10px 14px;border-radius:6px;
-  font-size:0.9rem;outline:none;transition:border-color 0.2s}
-.query-input:focus{border-color:#818cf8}
-.query-input::placeholder{color:#374151}
-.ask-btn{
-  background:#4f46e5;color:white;border:none;
-  padding:10px 18px;border-radius:6px;cursor:pointer;
-  font-size:0.9rem;transition:background 0.2s;white-space:nowrap}
-.ask-btn:hover{background:#4338ca}
-.ask-btn:disabled{background:#252544;cursor:not-allowed}
+        /* Query box */
+        .query-panel{background:#1a1a2e;border:1px solid #2d2d4e;
+            border-radius:10px;padding:16px}
+        .query-panel h3{font-size:0.8rem;color:#4b5563;
+            margin-bottom:10px;font-weight:400}
+        .query-row{display:flex;gap:10px}
+        .query-input{
+            flex:1;background:#0f0f1a;border:1px solid #4f46e5;
+            color:#e0e0e0;padding:10px 14px;border-radius:6px;
+            font-size:0.9rem;outline:none;transition:border-color 0.2s}
+        .query-input:focus{border-color:#818cf8}
+        .query-input::placeholder{color:#374151}
+        .ask-btn{
+            background:#4f46e5;color:white;border:none;
+            padding:10px 18px;border-radius:6px;cursor:pointer;
+            font-size:0.9rem;transition:background 0.2s;white-space:nowrap}
+        .ask-btn:hover{background:#4338ca}
+        .ask-btn:disabled{background:#252544;cursor:not-allowed}
 
-.examples{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
-.ex-btn{
-  background:#0f0f1a;border:1px solid #1e1e3f;
-  color:#6b7280;padding:4px 10px;border-radius:12px;
-  font-size:0.75rem;cursor:pointer;transition:all 0.2s}
-.ex-btn:hover{border-color:#4f46e5;color:#818cf8}
+        .examples{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+        .ex-btn{
+            background:#0f0f1a;border:1px solid #1e1e3f;
+            color:#6b7280;padding:4px 10px;border-radius:12px;
+            font-size:0.75rem;cursor:pointer;transition:all 0.2s}
+        .ex-btn:hover{border-color:#4f46e5;color:#818cf8}
 
-/* Results */
-.result-panel{background:#1a1a2e;border:1px solid #2d2d4e;
-              border-radius:10px;padding:16px}
-.interpret{
-  background:#0f0f1a;border-left:3px solid #818cf8;
-  padding:8px 12px;border-radius:4px;font-size:0.82rem;
-  color:#9ca3af;margin-bottom:10px}
-.sql-box{
-  background:#0a0a14;border:1px solid #1e1e3f;
-  border-radius:6px;padding:10px 12px;font-family:monospace;
-  font-size:0.78rem;color:#6ee7b7;margin-bottom:12px;
-  overflow-x:auto;white-space:pre}
-.results-tbl{width:100%;border-collapse:collapse;font-size:0.82rem}
-.results-tbl th{
-  background:#252544;color:#818cf8;padding:8px 12px;
-  text-align:left;border-bottom:1px solid #2d2d4e}
-.results-tbl td{
-  padding:6px 12px;border-bottom:1px solid #1a1a2e;color:#d1d5db}
-.results-tbl tr:hover td{background:#1e1e2e}
-.result-meta{color:#4b5563;font-size:0.74rem;margin-top:8px}
+        /* Results */
+        .result-panel{background:#1a1a2e;border:1px solid #2d2d4e;
+            border-radius:10px;padding:16px}
+        .interpret{
+            background:#0f0f1a;border-left:3px solid #818cf8;
+            padding:8px 12px;border-radius:4px;font-size:0.82rem;
+            color:#9ca3af;margin-bottom:10px}
+        .sql-box{
+            background:#0a0a14;border:1px solid #1e1e3f;
+            border-radius:6px;padding:10px 12px;font-family:monospace;
+            font-size:0.78rem;color:#6ee7b7;margin-bottom:12px;
+            overflow-x:auto;white-space:pre}
+        .results-tbl{width:100%;border-collapse:collapse;font-size:0.82rem}
+        .results-tbl th{
+            background:#252544;color:#818cf8;padding:8px 12px;
+            text-align:left;border-bottom:1px solid #2d2d4e}
+        .results-tbl td{
+            padding:6px 12px;border-bottom:1px solid #1a1a2e;color:#d1d5db}
+        .results-tbl tr:hover td{background:#1e1e2e}
+        .result-meta{color:#4b5563;font-size:0.74rem;margin-top:8px}
 
-/* History */
-.history-panel{background:#1a1a2e;border:1px solid #2d2d4e;
-               border-radius:10px;padding:16px}
-.history-panel h3{
-  font-size:0.82rem;color:#4b5563;margin-bottom:10px;
-  display:flex;justify-content:space-between;align-items:center}
-.h-item{
-  padding:8px 10px;background:#0f0f1a;border-radius:6px;
-  margin-bottom:6px;cursor:pointer;transition:background 0.15s;
-  border:1px solid #1e1e3f}
-.h-item:hover{background:#1a1a2e;border-color:#2d2d4e}
-.h-query{font-size:0.82rem;color:#c4c4d4;margin-bottom:4px;
-         white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.h-meta{display:flex;gap:10px;font-size:0.7rem;color:#4b5563}
-.h-status-ok{color:#6ee7b7}
-.h-status-err{color:#fca5a5}
+        /* History */
+        .history-panel{background:#1a1a2e;border:1px solid #2d2d4e;
+            border-radius:10px;padding:16px}
+        .history-panel h3{
+            font-size:0.82rem;color:#4b5563;margin-bottom:10px;
+            display:flex;justify-content:space-between;align-items:center}
+        .h-item{
+            padding:8px 10px;background:#0f0f1a;border-radius:6px;
+            margin-bottom:6px;cursor:pointer;transition:background 0.15s;
+            border:1px solid #1e1e3f}
+        .h-item:hover{background:#1a1a2e;border-color:#2d2d4e}
+        .h-query{font-size:0.82rem;color:#c4c4d4;margin-bottom:4px;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .h-meta{display:flex;gap:10px;font-size:0.7rem;color:#4b5563}
+        .h-status-ok{color:#6ee7b7}
+        .h-status-err{color:#fca5a5}
 
-/* Status messages */
-.msg-success{background:#064e3b;color:#6ee7b7;
-             padding:8px 12px;border-radius:6px;font-size:0.82rem}
-.msg-error{background:#450a0a;color:#fca5a5;
-           padding:8px 12px;border-radius:6px;font-size:0.82rem}
-.loading{color:#818cf8;font-size:0.82rem;
-         animation:pulse 1.2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+        /* Status messages */
+        .msg-success{background:#064e3b;color:#6ee7b7;
+            padding:8px 12px;border-radius:6px;font-size:0.82rem}
+        .msg-error{background:#450a0a;color:#fca5a5;
+            padding:8px 12px;border-radius:6px;font-size:0.82rem}
+        .loading{color:#818cf8;font-size:0.82rem;
+            animation:pulse 1.2s infinite}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
 
-/* Scrollbar */
-::-webkit-scrollbar{width:5px;height:5px}
-::-webkit-scrollbar-track{background:#111128}
-::-webkit-scrollbar-thumb{background:#2d2d4e;border-radius:3px}
-::-webkit-scrollbar-thumb:hover{background:#4f46e5}
+        /* Scrollbar */
+        ::-webkit-scrollbar{width:5px;height:5px}
+        ::-webkit-scrollbar-track{background:#111128}
+        ::-webkit-scrollbar-thumb{background:#2d2d4e;border-radius:3px}
+        ::-webkit-scrollbar-thumb:hover{background:#4f46e5}
 
-/* Upload status toast */
-#uploadToast{
-  position:fixed;bottom:20px;right:20px;z-index:100;
-  display:none;max-width:320px}
-</style>
+        /* Upload status toast */
+        #uploadToast{
+            position:fixed;bottom:20px;right:20px;z-index:100;
+            display:none;max-width:320px}
+    </style>
 </head>
 <body>
 
 <!-- ── SIDEBAR ─────────────────────────────────────────── -->
 <div id="sidebar">
-  <div class="sb-header">
-    <div>
-      <div class="logo">⚡ Data Analyst</div>
-      <div class="sub">Offline Enterprise Edition</div>
+    <div class="sb-header">
+        <div>
+            <div class="logo">⚡ Data Analyst</div>
+            <div class="sub">Offline Enterprise Edition</div>
+        </div>
     </div>
-  </div>
 
-  <button class="new-session-btn" onclick="createNewSession()">
-    ✦ New Session
-  </button>
+    <button class="new-session-btn" onclick="createNewSession()">
+        ✦ New Session
+    </button>
 
-  <div class="sb-section-label">Previous Sessions</div>
-  <div id="sessionsList"></div>
+    <div class="sb-section-label">Previous Sessions</div>
+    <div id="sessionsList"></div>
 </div>
 
 <!-- ── MAIN ──────────────────────────────────────────── -->
 <div id="main">
 
-  <!-- Top Bar -->
-  <div class="main-topbar">
+    <!-- Top Bar -->
+    <div class="main-topbar">
     <span class="session-title" id="sessionTitle">
       Loading...
     </span>
-    <span class="offline-badge">● Offline</span>
-    <button class="upload-btn"
-            onclick="document.getElementById('fileInput').click()">
-      📁 Upload File
-    </button>
-    <input type="file" id="fileInput" accept=".csv,.xls,.xlsx"
-           multiple style="display:none"/>
-  </div>
+        <span class="offline-badge">● Offline</span>
+        <button class="upload-btn"
+                onclick="document.getElementById('fileInput').click()">
+            📁 Upload File
+        </button>
+        <input type="file" id="fileInput" accept=".csv,.xls,.xlsx"
+               multiple style="display:none"/>
+    </div>
 
-  <!-- Files Chips Row -->
-  <div id="filesRow">
+    <!-- Files Chips Row -->
+    <div id="filesRow">
     <span id="filesRowEmpty" style="color:#374151;font-size:0.78rem">
       No files in this session — upload to get started
     </span>
-  </div>
-
-  <!-- Scrollable Content -->
-  <div id="contentArea">
-
-    <!-- Query Panel -->
-    <div class="query-panel">
-      <h3>Ask a question about your data</h3>
-      <div class="query-row">
-        <input class="query-input" id="queryInput"
-               placeholder="e.g. Average salary by department"
-               onkeydown="if(event.key==='Enter') runQuery()"/>
-        <button class="ask-btn" id="askBtn"
-                onclick="runQuery()">Ask →</button>
-      </div>
-      <div class="examples">
-        <button class="ex-btn"
-                onclick="setQ('Count rows')">
-          Count rows</button>
-        <button class="ex-btn"
-                onclick="setQ('Show columns')">
-          Show columns</button>
-        <button class="ex-btn"
-                onclick="setQ('Find duplicate employee_id')">
-          Find duplicates</button>
-        <button class="ex-btn"
-                onclick="setQ('Show missing values')">
-          Missing values</button>
-        <button class="ex-btn"
-                onclick="setQ('Average salary by department')">
-          Avg by group</button>
-        <button class="ex-btn"
-                onclick="setQ('Show first 20 rows')">
-          Preview data</button>
-      </div>
     </div>
 
-    <!-- Result Panel (hidden initially) -->
-    <div class="result-panel" id="resultPanel"
-         style="display:none"></div>
+    <!-- Scrollable Content -->
+    <div id="contentArea">
 
-    <!-- History Panel -->
-    <div class="history-panel" id="historyPanel"
-         style="display:none">
-      <h3>
-        <span>Session History</span>
-        <span id="historyCount"
-              style="color:#4b5563;font-weight:400"></span>
-      </h3>
-      <div id="historyList"></div>
+        <!-- Query Panel -->
+        <div class="query-panel">
+            <h3>Ask a question about your data</h3>
+            <div class="query-row">
+                <input class="query-input" id="queryInput"
+                       placeholder="e.g. Average salary by department"
+                       onkeydown="if(event.key==='Enter') runQuery()"/>
+                <button class="ask-btn" id="askBtn"
+                        onclick="runQuery()">Ask →</button>
+            </div>
+            <div class="examples">
+                <button class="ex-btn"
+                        onclick="setQ('Count rows')">
+                    Count rows</button>
+                <button class="ex-btn"
+                        onclick="setQ('Show columns')">
+                    Show columns</button>
+                <button class="ex-btn"
+                        onclick="setQ('Find duplicate employee_id')">
+                    Find duplicates</button>
+                <button class="ex-btn"
+                        onclick="setQ('Show missing values')">
+                    Missing values</button>
+                <button class="ex-btn"
+                        onclick="setQ('Average salary by department')">
+                    Avg by group</button>
+                <button class="ex-btn"
+                        onclick="setQ('Show first 20 rows')">
+                    Preview data</button>
+            </div>
+        </div>
+
+        <!-- Result Panel (hidden initially) -->
+        <div class="result-panel" id="resultPanel"
+             style="display:none"></div>
+
+        <!-- History Panel -->
+        <div class="history-panel" id="historyPanel"
+             style="display:none">
+            <h3>
+                <span>Session History</span>
+                <span id="historyCount"
+                      style="color:#4b5563;font-weight:400"></span>
+            </h3>
+            <div id="historyList"></div>
+        </div>
+
     </div>
-
-  </div>
 </div>
 
 <!-- Upload Toast -->
 <div id="uploadToast"></div>
 
 <script>
-// ─── STATE ───────────────────────────────────────────────────
-let currentSessionId = null;
-let currentSessionName = '';
-let currentFiles = [];
+    // ─── STATE ───────────────────────────────────────────────────
+    let currentSessionId = null;
+    let currentSessionName = '';
+    let currentFiles = [];
 
-// ─── INIT ────────────────────────────────────────────────────
-window.addEventListener('load', async () => {
-  // Check localStorage for existing session
-  const saved = localStorage.getItem('currentSessionId');
-  if (saved) {
-    // Verify session still exists
-    try {
-      const res = await fetch('/api/sessions/' + saved);
-      if (res.ok) {
-        const session = await res.json();
-        await loadSession(session.sessionId, session.sessionName);
-      } else {
-        await createNewSession();
-      }
-    } catch {
-      await createNewSession();
+    // ─── INIT ────────────────────────────────────────────────────
+    window.addEventListener('load', async () => {
+        // Check localStorage for existing session
+        const saved = localStorage.getItem('currentSessionId');
+        if (saved) {
+            // Verify session still exists
+            try {
+                const res = await fetch('/api/sessions/' + saved);
+                if (res.ok) {
+                    const session = await res.json();
+                    await loadSession(session.sessionId, session.sessionName);
+                } else {
+                    await createNewSession();
+                }
+            } catch {
+                await createNewSession();
+            }
+        } else {
+            await createNewSession();
+        }
+        await loadSessionsList();
+    });
+
+    // ─── SESSION MANAGEMENT ──────────────────────────────────────
+
+    async function createNewSession() {
+        try {
+            const res = await fetch('/api/sessions', { method: 'POST' });
+            const session = await res.json();
+            await loadSession(session.sessionId, session.sessionName);
+            await loadSessionsList();
+        } catch (err) {
+            showToast('Failed to create session: ' + err.message, 'error');
+        }
     }
-  } else {
-    await createNewSession();
-  }
-  await loadSessionsList();
-});
 
-// ─── SESSION MANAGEMENT ──────────────────────────────────────
+    async function loadSession(sessionId, sessionName) {
+        currentSessionId = sessionId;
+        currentSessionName = sessionName;
+        localStorage.setItem('currentSessionId', sessionId);
 
-async function createNewSession() {
-  try {
-    const res = await fetch('/api/sessions', { method: 'POST' });
-    const session = await res.json();
-    await loadSession(session.sessionId, session.sessionName);
-    await loadSessionsList();
-  } catch (err) {
-    showToast('Failed to create session: ' + err.message, 'error');
-  }
-}
+        // Update UI
+        document.getElementById('sessionTitle').textContent = sessionName;
 
-async function loadSession(sessionId, sessionName) {
-  currentSessionId = sessionId;
-  currentSessionName = sessionName;
-  localStorage.setItem('currentSessionId', sessionId);
+        // Clear result
+        document.getElementById('resultPanel').style.display = 'none';
+        document.getElementById('queryInput').value = '';
 
-  // Update UI
-  document.getElementById('sessionTitle').textContent = sessionName;
+        // Load files for this session
+        await loadSessionFiles();
 
-  // Clear result
-  document.getElementById('resultPanel').style.display = 'none';
-  document.getElementById('queryInput').value = '';
+        // Load history for this session
+        await loadSessionHistory();
 
-  // Load files for this session
-  await loadSessionFiles();
+        // Update active state in sidebar
+        document.querySelectorAll('.session-item').forEach(el => {
+            el.classList.toggle('active',
+                el.dataset.sessionId === sessionId);
+        });
+    }
 
-  // Load history for this session
-  await loadSessionHistory();
+    async function loadSessionsList() {
+        try {
+            const res = await fetch('/api/sessions');
+            const sessions = await res.json();
+            const el = document.getElementById('sessionsList');
 
-  // Update active state in sidebar
-  document.querySelectorAll('.session-item').forEach(el => {
-    el.classList.toggle('active',
-      el.dataset.sessionId === sessionId);
-  });
-}
-
-async function loadSessionsList() {
-  try {
-    const res = await fetch('/api/sessions');
-    const sessions = await res.json();
-    const el = document.getElementById('sessionsList');
-
-    if (!sessions.length) {
-      el.innerHTML = `<div style="padding:12px;font-size:0.78rem;
+            if (!sessions.length) {
+                el.innerHTML = `<div style="padding:12px;font-size:0.78rem;
         color:#374151;text-align:center">No sessions yet</div>`;
-      return;
-    }
+                return;
+            }
 
-    el.innerHTML = sessions.map(s => `
+            el.innerHTML = sessions.map(s => `
       <div class="session-item ${s.sessionId === currentSessionId
-            ? 'active' : ''}"
+                ? 'active' : ''}"
            data-session-id="${s.sessionId}"
            onclick="switchSession('${s.sessionId}',
                    '${escH(s.sessionName)}')">
@@ -384,100 +384,100 @@ async function loadSessionsList() {
         </div>
       </div>
     `).join('');
-  } catch (err) {
-    console.error('Sessions list failed:', err);
-  }
-}
-
-async function switchSession(sessionId, sessionName) {
-  if (sessionId === currentSessionId) return;
-  await loadSession(sessionId, sessionName);
-  document.querySelectorAll('.session-item').forEach(el => {
-    el.classList.toggle('active',
-      el.dataset.sessionId === sessionId);
-  });
-}
-
-async function deleteSession(sessionId) {
-  if (!confirm('Delete this session? Files will be kept.')) return;
-  await fetch('/api/sessions/' + sessionId, { method: 'DELETE' });
-  if (sessionId === currentSessionId) {
-    await createNewSession();
-  }
-  await loadSessionsList();
-}
-
-// ─── FILE MANAGEMENT ─────────────────────────────────────────
-
-document.getElementById('fileInput')
-  .addEventListener('change', async (e) => {
-    for (const file of e.target.files) {
-      await uploadFile(file);
+        } catch (err) {
+            console.error('Sessions list failed:', err);
+        }
     }
-    e.target.value = ''; // reset input
-    await loadSessionFiles();
-    await loadSessionsList();
-  });
 
-async function uploadFile(file) {
-  showToast(`⏳ Uploading ${file.name}...`, 'loading');
-
-  const formData = new FormData();
-  formData.append('file', file);
-
-  try {
-    const url = '/api/files/upload' +
-      (currentSessionId ? '?sessionId=' + currentSessionId : '');
-    const res = await fetch(url, {
-      method: 'POST',
-      body: formData
-    });
-    const data = await res.json();
-
-    if (res.ok && Array.isArray(data)) {
-      const names = data.map(r => r.tableName).join(', ');
-      showToast(
-        `✓ ${file.name} → tables: ${names}`, 'success');
-    } else {
-      showToast(
-        `✗ ${data[0]?.message || 'Upload failed'}`, 'error');
+    async function switchSession(sessionId, sessionName) {
+        if (sessionId === currentSessionId) return;
+        await loadSession(sessionId, sessionName);
+        document.querySelectorAll('.session-item').forEach(el => {
+            el.classList.toggle('active',
+                el.dataset.sessionId === sessionId);
+        });
     }
-  } catch (err) {
-    showToast('✗ Upload error: ' + err.message, 'error');
-  }
-}
 
-async function loadSessionFiles() {
-  if (!currentSessionId) return;
+    async function deleteSession(sessionId) {
+        if (!confirm('Delete this session? Files will be kept.')) return;
+        await fetch('/api/sessions/' + sessionId, { method: 'DELETE' });
+        if (sessionId === currentSessionId) {
+            await createNewSession();
+        }
+        await loadSessionsList();
+    }
 
-  try {
-    const res = await fetch(
-      '/api/files/session/' + currentSessionId);
-    const files = await res.json();
-    currentFiles = files;
-    renderFileChips(files);
-  } catch (err) {
-    console.error('Files load failed:', err);
-  }
-}
+    // ─── FILE MANAGEMENT ─────────────────────────────────────────
 
-function renderFileChips(files) {
-  const row = document.getElementById('filesRow');
-  const empty = document.getElementById('filesRowEmpty');
+    document.getElementById('fileInput')
+        .addEventListener('change', async (e) => {
+            for (const file of e.target.files) {
+                await uploadFile(file);
+            }
+            e.target.value = ''; // reset input
+            await loadSessionFiles();
+            await loadSessionsList();
+        });
 
-  if (!files || !files.length) {
-    // Show empty state
-    row.innerHTML = '';
-    const emptyEl = document.createElement('span');
-    emptyEl.id = 'filesRowEmpty';
-    emptyEl.style.cssText = 'color:#374151;font-size:0.78rem';
-    emptyEl.textContent =
-      'No files in this session — upload to get started';
-    row.appendChild(emptyEl);
-    return;
-  }
+    async function uploadFile(file) {
+        showToast(`⏳ Uploading ${file.name}...`, 'loading');
 
-  row.innerHTML = files.map(f => `
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const url = '/api/files/upload' +
+                (currentSessionId ? '?sessionId=' + currentSessionId : '');
+            const res = await fetch(url, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+
+            if (res.ok && Array.isArray(data)) {
+                const names = data.map(r => r.tableName).join(', ');
+                showToast(
+                    `✓ ${file.name} → tables: ${names}`, 'success');
+            } else {
+                showToast(
+                    `✗ ${data[0]?.message || 'Upload failed'}`, 'error');
+            }
+        } catch (err) {
+            showToast('✗ Upload error: ' + err.message, 'error');
+        }
+    }
+
+    async function loadSessionFiles() {
+        if (!currentSessionId) return;
+
+        try {
+            const res = await fetch(
+                '/api/files/session/' + currentSessionId);
+            const files = await res.json();
+            currentFiles = files;
+            renderFileChips(files);
+        } catch (err) {
+            console.error('Files load failed:', err);
+        }
+    }
+
+    function renderFileChips(files) {
+        const row = document.getElementById('filesRow');
+        const empty = document.getElementById('filesRowEmpty');
+
+        if (!files || !files.length) {
+            // Show empty state
+            row.innerHTML = '';
+            const emptyEl = document.createElement('span');
+            emptyEl.id = 'filesRowEmpty';
+            emptyEl.style.cssText = 'color:#374151;font-size:0.78rem';
+            emptyEl.textContent =
+                'No files in this session — upload to get started';
+            row.appendChild(emptyEl);
+            return;
+        }
+
+        row.innerHTML = files.map(f => `
     <div class="file-chip" title="${escH(f.originalFile)}">
       <span class="chip-icon">${getFileIcon(f.fileType)}</span>
       <span class="chip-name">${escH(f.tableName)}</span>
@@ -489,155 +489,155 @@ function renderFileChips(files) {
               title="Remove">✕</button>
     </div>
   `).join('');
-}
+    }
 
-async function deleteFile(tableName) {
-  if (!confirm(`Remove table "${tableName}"?\nData will be deleted.`))
-    return;
+    async function deleteFile(tableName) {
+        if (!confirm(`Remove table "${tableName}"?\nData will be deleted.`))
+            return;
 
-  const url = `/api/files/${encodeURIComponent(tableName)}` +
-    (currentSessionId ? '?sessionId=' + currentSessionId : '');
+        const url = `/api/files/${encodeURIComponent(tableName)}` +
+            (currentSessionId ? '?sessionId=' + currentSessionId : '');
 
-  const res = await fetch(url, { method: 'DELETE' });
+        const res = await fetch(url, { method: 'DELETE' });
 
-  if (res.ok) {
-    showToast(`✓ "${tableName}" removed`, 'success');
-    await loadSessionFiles();
-    await loadSessionsList();
-  } else {
-    showToast('Delete failed', 'error');
-  }
-}
+        if (res.ok) {
+            showToast(`✓ "${tableName}" removed`, 'success');
+            await loadSessionFiles();
+            await loadSessionsList();
+        } else {
+            showToast('Delete failed', 'error');
+        }
+    }
 
-function getFileIcon(type) {
-  const t = (type || '').toUpperCase();
-  if (t === 'CSV') return '📊';
-  if (t === 'XLSX' || t === 'XLS') return '📗';
-  return '📄';
-}
+    function getFileIcon(type) {
+        const t = (type || '').toUpperCase();
+        if (t === 'CSV') return '📊';
+        if (t === 'XLSX' || t === 'XLS') return '📗';
+        return '📄';
+    }
 
-// ─── QUERY ───────────────────────────────────────────────────
+    // ─── QUERY ───────────────────────────────────────────────────
 
-async function runQuery() {
-  const query = document.getElementById('queryInput').value.trim();
-  if (!query) return;
+    async function runQuery() {
+        const query = document.getElementById('queryInput').value.trim();
+        if (!query) return;
 
-  const btn = document.getElementById('askBtn');
-  const panel = document.getElementById('resultPanel');
+        const btn = document.getElementById('askBtn');
+        const panel = document.getElementById('resultPanel');
 
-  btn.disabled = true;
-  btn.textContent = '...';
-  panel.style.display = 'block';
-  panel.innerHTML = '<div class="loading">⏳ Processing...</div>';
+        btn.disabled = true;
+        btn.textContent = '...';
+        panel.style.display = 'block';
+        panel.innerHTML = '<div class="loading">⏳ Processing...</div>';
 
-  try {
-    const res = await fetch('/api/query', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: query,
-        sessionId: currentSessionId
-      })
-    });
-    const data = await res.json();
-    renderResult(data, panel);
-    await loadSessionHistory();
-    await loadSessionsList();
-  } catch (err) {
-    panel.innerHTML =
-      `<div class="msg-error">✗ Error: ${escH(err.message)}</div>`;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Ask →';
-  }
-}
+        try {
+            const res = await fetch('/api/query', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    query: query,
+                    sessionId: currentSessionId
+                })
+            });
+            const data = await res.json();
+            renderResult(data, panel);
+            await loadSessionHistory();
+            await loadSessionsList();
+        } catch (err) {
+            panel.innerHTML =
+                `<div class="msg-error">✗ Error: ${escH(err.message)}</div>`;
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Ask →';
+        }
+    }
 
-function setQ(q) {
-  document.getElementById('queryInput').value = q;
-}
+    function setQ(q) {
+        document.getElementById('queryInput').value = q;
+    }
 
-function renderResult(data, container) {
-  if (data.error) {
-    container.innerHTML =
-      `<div class="msg-error">✗ ${escH(data.error)}</div>
+    function renderResult(data, container) {
+        if (data.error) {
+            container.innerHTML =
+                `<div class="msg-error">✗ ${escH(data.error)}</div>
        ${data.generatedSql ? `<div class="sql-box">${escH(data.generatedSql)}</div>` : ''}`;
-    return;
-  }
-  if (data.message && !data.columns?.length) {
-    container.innerHTML =
-      `<div class="msg-success">ℹ ${escH(data.message)}</div>`;
-    return;
-  }
+            return;
+        }
+        if (data.message && !data.columns?.length) {
+            container.innerHTML =
+                `<div class="msg-success">ℹ ${escH(data.message)}</div>`;
+            return;
+        }
 
-  let html = '';
+        let html = '';
 
-  if (data.interpretationSummary) {
-    html += `<div class="interpret">
+        if (data.interpretationSummary) {
+            html += `<div class="interpret">
       🤖 ${escH(data.interpretationSummary)}</div>`;
-  }
+        }
 
-  if (data.generatedSql) {
-    html += `<div class="sql-box">${escH(data.generatedSql)}</div>`;
-  }
+        if (data.generatedSql) {
+            html += `<div class="sql-box">${escH(data.generatedSql)}</div>`;
+        }
 
-  if (data.columns?.length && data.rows?.length) {
-    html += `<div style="overflow-x:auto">
+        if (data.columns?.length && data.rows?.length) {
+            html += `<div style="overflow-x:auto">
       <table class="results-tbl">
         <thead><tr>
           ${data.columns.map(c =>
-            `<th>${escH(c)}</th>`).join('')}
+                `<th>${escH(c)}</th>`).join('')}
         </tr></thead>
         <tbody>
           ${data.rows.map(row =>
-            `<tr>${row.map(v =>
-              `<td>${escH(v ?? 'NULL')}</td>`
-            ).join('')}</tr>`
-          ).join('')}
+                `<tr>${row.map(v =>
+                    `<td>${escH(v ?? 'NULL')}</td>`
+                ).join('')}</tr>`
+            ).join('')}
         </tbody>
       </table>
     </div>
     <div class="result-meta">
       ${data.rowCount} row(s) · ${data.executionTimeMs}ms
     </div>`;
-  } else if (data.columns?.length && !data.rows?.length) {
-    html += `<div class="msg-success">
+        } else if (data.columns?.length && !data.rows?.length) {
+            html += `<div class="msg-success">
       ✓ Query executed — no rows returned.</div>`;
-  }
+        }
 
-  container.innerHTML = html ||
-    `<div class="msg-success">✓ Done.</div>`;
-}
-
-// ─── HISTORY ─────────────────────────────────────────────────
-
-async function loadSessionHistory() {
-  if (!currentSessionId) return;
-
-  try {
-    const res = await fetch(
-      '/api/query/history/session/' + currentSessionId +
-      '?limit=20');
-    const history = await res.json();
-
-    const panel = document.getElementById('historyPanel');
-    const list  = document.getElementById('historyList');
-    const count = document.getElementById('historyCount');
-
-    if (!history.length) {
-      panel.style.display = 'none';
-      return;
+        container.innerHTML = html ||
+            `<div class="msg-success">✓ Done.</div>`;
     }
 
-    panel.style.display = 'block';
-    count.textContent = `${history.length} queries`;
+    // ─── HISTORY ─────────────────────────────────────────────────
 
-    list.innerHTML = history.map(h => `
+    async function loadSessionHistory() {
+        if (!currentSessionId) return;
+
+        try {
+            const res = await fetch(
+                '/api/query/history/session/' + currentSessionId +
+                '?limit=20');
+            const history = await res.json();
+
+            const panel = document.getElementById('historyPanel');
+            const list  = document.getElementById('historyList');
+            const count = document.getElementById('historyCount');
+
+            if (!history.length) {
+                panel.style.display = 'none';
+                return;
+            }
+
+            panel.style.display = 'block';
+            count.textContent = `${history.length} queries`;
+
+            list.innerHTML = history.map(h => `
       <div class="h-item"
            onclick="setQ('${escH(h.userQuery).replace(/'/g,"\\'")}')">
         <div class="h-query">${escH(h.userQuery)}</div>
         <div class="h-meta">
           <span class="${h.status === 'SUCCESS'
-            ? 'h-status-ok' : 'h-status-err'}">
+                ? 'h-status-ok' : 'h-status-err'}">
             ${h.status}
           </span>
           <span>${h.rowCount} rows</span>
@@ -646,39 +646,39 @@ async function loadSessionHistory() {
         </div>
       </div>
     `).join('');
-  } catch (err) {
-    console.error('History load failed:', err);
-  }
-}
+        } catch (err) {
+            console.error('History load failed:', err);
+        }
+    }
 
-// ─── UTILS ───────────────────────────────────────────────────
+    // ─── UTILS ───────────────────────────────────────────────────
 
-function showToast(msg, type) {
-  const el = document.getElementById('uploadToast');
-  el.className = type === 'error' ? 'msg-error' :
-                 type === 'loading' ? 'loading' : 'msg-success';
-  el.textContent = msg;
-  el.style.display = 'block';
-  if (type !== 'loading') {
-    setTimeout(() => el.style.display = 'none', 3000);
-  }
-}
+    function showToast(msg, type) {
+        const el = document.getElementById('uploadToast');
+        el.className = type === 'error' ? 'msg-error' :
+            type === 'loading' ? 'loading' : 'msg-success';
+        el.textContent = msg;
+        el.style.display = 'block';
+        if (type !== 'loading') {
+            setTimeout(() => el.style.display = 'none', 3000);
+        }
+    }
 
-function escH(str) {
-  return String(str ?? '')
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
-    .replace(/'/g,'&#39;');
-}
+    function escH(str) {
+        return String(str ?? '')
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+            .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+            .replace(/'/g,'&#39;');
+    }
 
-function formatTime(dateStr) {
-  if (!dateStr) return '';
-  try {
-    return new Date(dateStr).toLocaleTimeString([], {
-      hour: '2-digit', minute: '2-digit'
-    });
-  } catch { return dateStr; }
-}
+    function formatTime(dateStr) {
+        if (!dateStr) return '';
+        try {
+            return new Date(dateStr).toLocaleTimeString([], {
+                hour: '2-digit', minute: '2-digit'
+            });
+        } catch { return dateStr; }
+    }
 </script>
 </body>
 </html>

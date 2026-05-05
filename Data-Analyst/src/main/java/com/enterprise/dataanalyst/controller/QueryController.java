@@ -70,8 +70,9 @@ public class QueryController {
 
             // Step 4: Save to history
             historyService.save(
-                request.getQuery(), generatedSql,
-                "SUCCESS", rawResults.size(), elapsed);
+                    request.getQuery(), generatedSql,
+                    "SUCCESS", rawResults.size(), elapsed,
+                    request.getSessionId());
 
             return ResponseEntity.ok(QueryResponse.builder()
                     .columns(columns)
@@ -86,7 +87,7 @@ public class QueryController {
         } catch (QueryProcessingException e) {
             long elapsed = System.currentTimeMillis() - start;
             historyService.save(
-                request.getQuery(), generatedSql, "ERROR", 0, elapsed);
+                request.getQuery(), generatedSql, "ERROR", 0, elapsed, request.getSessionId());
 
             log.warn("Query failed: {}", e.getMessage());
             return ResponseEntity.badRequest()
@@ -98,7 +99,7 @@ public class QueryController {
         } catch (Exception e) {
             long elapsed = System.currentTimeMillis() - start;
             historyService.save(
-                request.getQuery(), generatedSql, "ERROR", 0, elapsed);
+                request.getQuery(), generatedSql, "ERROR", 0, elapsed, request.getSessionId());
 
             log.error("Unexpected error: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError()

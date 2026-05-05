@@ -12,6 +12,7 @@ import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.List;
 
 /**
  * DuckDB Configuration.
@@ -81,31 +82,102 @@ public class DuckDBConfig {
      * so the registry survives application restarts. On startup, we reload this
      * into memory via TableMetadataRegistry.
      */
-    private void initializeMetadataSchema(Connection conn) throws SQLException {
-        String createTableRegistry = """
-                CREATE TABLE IF NOT EXISTS _sys_table_registry (
-                    table_name     VARCHAR PRIMARY KEY,
-                    original_file  VARCHAR NOT NULL,
-                    file_type      VARCHAR NOT NULL,
-                    row_count      BIGINT,
-                    uploaded_at    TIMESTAMP DEFAULT current_timestamp
-                )
-                """;
+    private void initializeMetadataSchema(Connection conn)
+            throws SQLException {
+            List<String> queries = List.of(
 
-        String createColumnRegistry = """
-                CREATE TABLE IF NOT EXISTS _sys_column_registry (
-                    table_name   VARCHAR NOT NULL,
-                    column_name  VARCHAR NOT NULL,
-                    data_type    VARCHAR NOT NULL,
-                    ordinal_pos  INTEGER NOT NULL,
-                    PRIMARY KEY (table_name, column_name)
-                )
-                """;
+                    // Sessions table
+                    """
+                    CREATE TABLE IF NOT EXISTS _sys_sessions (
+                        session_id   VARCHAR PRIMARY KEY,
+                        session_name VARCHAR NOT NULL,
+                        created_at   TIMESTAMP DEFAULT current_timestamp,
+                        last_active  TIMESTAMP DEFAULT current_timestamp
+                    )
+                    """,
 
-        try (var stmt = conn.createStatement()) {
-            stmt.execute(createTableRegistry);
-            stmt.execute(createColumnRegistry);
-            log.debug("System metadata tables verified/created.");
-        }
+                    // Session tables mapping
+                    """
+                    CREATE TABLE IF NOT EXISTS _sys_session_tables (
+                        session_id VARCHAR NOT NULL,
+                        table_name VARCHAR NOT NULL,
+                        PRIMARY KEY (session_id, table_name)
+                    )
+                    """,
+
+                    // Table registry
+                    """
+                    CREATE TABLE IF NOT EXISTS _sys_table_registry (
+                        table_name    VARCHAR PRIMARY KEY,
+                        original_file VARCHAR NOT NULL,
+                        file_type     VARCHAR NOT NULL,
+                        row_count     BIGINT,
+                        uploaded_at   TIMESTAMP DEFAULT current_timestamp
+                    )
+                    """,
+
+                    // Column registry
+                    """
+                    CREATE TABLE IF NOT EXISTS _sys_column_registry (
+                        table_name  VARCHAR NOT NULL,
+                        column_name VARCHAR NOT NULL,
+                        data_type   VARCHAR NOT NULL,
+                        ordinal_pos INTEGER NOT NULL,
+                        PRIMARY KEY (table_name, column_name)
+                    )
+                    """,
+
+                    // Column profiles — stores actual data intelligence
+                    // Populated by DataProfilerService at upload time.
+                    // Used by Pass 2 LLM prompts for data-aware reasoning.
+                    """
+                    CREATE TABLE IF NOT EXISTS _sys_column_profiles (
+                        table_name       VARCHAR NOT NULL,
+                        column_name      VARCHAR NOT NULL,
+                        data_type        VARCHAR,
+                        distinct_count   BIGINT DEFAULT 0,
+                        null_count       BIGINT DEFAULT 0,
+                        total_count      BIGINT DEFAULT 0,
+                        min_value        VARCHAR,
+                        max_value        VARCHAR,
+                        dominant_pattern VARCHAR,
+                        sample_values    VARCHAR,
+                        distinct_values  VARCHAR,
+                        PRIMARY KEY (table_name, column_name)
+                    )
+                    """,
+
+                    // Cleanup old history
+                    "DROP TABLE IF EXISTS _sys_query_history",
+                    "DROP SEQUENCE IF EXISTS _sys_history_seq",
+
+                    // Query history
+                    """
+                    CREATE TABLE IF NOT EXISTS _sys_query_history (
+                        history_id    INTEGER PRIMARY KEY,
+                        session_id    VARCHAR,
+                        user_query    VARCHAR NOT NULL,
+                        generated_sql VARCHAR,
+                        status        VARCHAR,
+                        row_count     INTEGER DEFAULT 0,
+                        execution_ms  BIGINT DEFAULT 0,
+                        queried_at    TIMESTAMP DEFAULT current_timestamp
+                    )
+                    """,
+
+                    // Sequence
+                    """
+                    CREATE SEQUENCE IF NOT EXISTS _sys_history_seq START 1
+                    """
+            );
+
+            try (var stmt = conn.createStatement()) {
+                for (String query : queries) {
+                    stmt.execute(query);
+                }
+                log.debug("Schema initialized.");
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to initialize schema", e);
+            }
     }
 }
