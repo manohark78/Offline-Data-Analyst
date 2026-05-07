@@ -27,8 +27,8 @@ public class LlamaConfig {
     @Value("${app.llm.model-path}")
     private String modelPath;
 
-    @Value("${app.llm.gpu-layers:0}")
-    private int gpuLayers;
+    @Value("${app.llm.context-length}")
+    private int contextLength;
 
     @Bean(destroyMethod = "close")
     public LlamaModel llamaModel() {
@@ -40,8 +40,6 @@ public class LlamaConfig {
         }
 
         int cores = Runtime.getRuntime().availableProcessors();
-        log.info("Cores: {}, GPU Layers: {}, Model: {} MB",
-                cores, gpuLayers, modelFile.length() / (1024 * 1024));
 
         try {
             // 4.x style — builder pattern
@@ -49,7 +47,7 @@ public class LlamaConfig {
                             .setModel(modelFile.getAbsolutePath())
                             .setCtxSize(contextLength)
                             .setThreads(cores)
-                            .setGpuLayers(gpuLayers);
+                            .setGpuLayers(0);
 
             return new LlamaModel(params);
 
