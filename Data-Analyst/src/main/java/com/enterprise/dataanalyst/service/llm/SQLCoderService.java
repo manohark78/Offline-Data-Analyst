@@ -74,88 +74,65 @@ public class SQLCoderService {
         log.info("Processing query: '{}'", userQuery);
         String lower = userQuery.toLowerCase().trim();
 
-        // Step 1: Resolve table name using smart data-aware resolver
+        // Step 1: Resolve table name
         String resolvedTable = smartTableResolver.resolve(userQuery);
-        log.info("Resolved table: '{}'", resolvedTable);
 
-        // Step 2: Try deterministic path first (instant)
+        // Step 2: Try deterministic path (instant)
         String deterministicSQL = tryDeterministic(lower, resolvedTable);
-        if (deterministicSQL != null) {
-            log.info("Deterministic SQL (LLM bypassed): {}", deterministicSQL);
-            return deterministicSQL;
-        }
+        if (deterministicSQL != null) return deterministicSQL;
 
-        // Step 3: LLM Pass 1 — schema-only (fast)
-        log.info("Pass 1: Schema-only LLM generation...");
+        // Step 3: LLM Reasoning & Generation (Pass 1 & 2)
         String pass1SQL = null;
         String pass1Error = null;
 
         try {
+            // Attempt 1: Standard Generation (Pass 1)
             pass1SQL = generatePass1(userQuery, resolvedTable);
-            log.info("Pass 1 SQL: {}", pass1SQL);
-
-            // Validate Pass 1 SQL structurally before returning
-            // Check if referenced columns actually exist in the table
+            
+            // Hallucination Check
             if (resolvedTable != null && hasColumnMismatch(pass1SQL, resolvedTable)) {
-                pass1Error = "Generated SQL references columns that don't exist in table '"
-                           + resolvedTable + "'";
-                log.info("Pass 1 column validation failed: {}", pass1Error);
-            } else {
-                return pass1SQL; // Pass 1 success!
+                log.info("Pass 1 Hallucinated columns. Escalating to Pass 2...");
+                return generatePass2(userQuery, resolvedTable, pass1SQL, "Reference to non-existent columns detected.");
             }
-        } catch (Exception e) {
-            pass1Error = e.getMessage();
-            log.info("Pass 1 failed: {}", pass1Error);
-        }
-
-        // Step 4: LLM Pass 2 — data-aware (fires only on Pass 1 failure)
-        if (pass2Enabled && profileRegistry.hasProfiles()) {
-            log.info("Pass 2: Data-aware LLM generation (with value context)...");
-            try {
-                return generatePass2(userQuery, resolvedTable, pass1SQL, pass1Error);
-            } catch (Exception e) {
-                log.error("Pass 2 also failed: {}", e.getMessage());
-                // Fall through to return Pass 1 SQL (best effort)
-            }
-        }
-
-        // If Pass 1 had a result, return it (may fail at execution but let controller handle)
-        if (pass1SQL != null) {
             return pass1SQL;
+        } catch (Exception e) {
+            log.info("Pass 1 Failed: {}. Escalating to Pass 2...", e.getMessage());
+            return generatePass2(userQuery, resolvedTable, pass1SQL, e.getMessage());
         }
-
-        throw new QueryProcessingException(
-                "Could not generate SQL for query: '" + userQuery + "'. " +
-                "Error: " + pass1Error);
     }
-
-    // ─── PASS 1: SCHEMA-ONLY (current behavior) ──────────────────
 
     private String generatePass1(String userQuery, String resolvedTable) {
         String schema = buildCompressedSchema(resolvedTable);
-        log.debug("Pass 1 schema ({} chars)", schema.length());
-
-        String prompt = buildPass1Prompt(schema, userQuery, resolvedTable);
-        log.debug("Pass 1 prompt ({} chars)", prompt.length());
-
+        // Using Llama-3 Instruct tags for Pass 1 too
+        String prompt = String.format(
+            "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n" +
+            "You are a DuckDB expert. Generate a SQL query to answer the user question.\n" +
+            "Return ONLY the SQL inside a [SQL] block.\n" +
+            "Schema:\n%s\n" +
+            "<|eot_id|><|start_header_id|>user<|end_header_id|>\n" +
+            "%s\n" +
+            "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n",
+            schema, userQuery
+        );
         String rawOutput = runInference(prompt, maxTokens);
         return sqlSanitizer.extractAndValidate(rawOutput);
     }
-
-    // ─── PASS 2: DATA-AWARE (enriched with actual values) ────────
 
     private String generatePass2(String userQuery, String resolvedTable,
                                   String failedSQL, String errorMessage) {
         String prompt = dataAwarePromptBuilder.buildPass2Prompt(
                 userQuery, resolvedTable, failedSQL, errorMessage);
 
-        log.debug("Pass 2 prompt ({} chars)", prompt.length());
-
-        // Pass 2 gets slightly more tokens for complex derived queries
-        String rawOutput = runInference(prompt, maxTokens + 50);
+        // Pass 2 with reasoning takes more tokens
+        String rawOutput = runInference(prompt, maxTokens + 200);
         String sql = sqlSanitizer.extractAndValidate(rawOutput);
 
-        log.info("Pass 2 SQL: {}", sql);
+        // SELF-HEALING: If it's a conversation instead of SQL, let it be (Llama-3 Chat Mode)
+        if (!sql.contains("SELECT") && rawOutput.length() > 5) {
+            return "MESSAGE:" + rawOutput; 
+        }
+
+        log.info("Pass 2 Result: {}", sql);
         return sql;
     }
 
@@ -484,11 +461,15 @@ public class SQLCoderService {
         try {
             InferenceParameters params =
                     new InferenceParameters(prompt)
-                            .setTemperature(0.1f)
+                            .setTemperature(temperature)
                             .setNPredict(tokens)
                             .setStopStrings(
-                                    "[/SQL]", "###",
-                                    "\n\n"
+                                    "[/SQL]", 
+                                    "<|eot_id|>", 
+                                    "<|end_of_text|>",
+                                    "<|im_end|>",
+                                    "assistant\n",
+                                    "###"
                             );
 
             for (LlamaOutput token : llamaModel.generate(params)) {
@@ -496,9 +477,10 @@ public class SQLCoderService {
                 String current = output.toString().trim();
 
                 // Aggressive early stopping
-                if (current.endsWith(";")) break;
-                if (current.contains("[/SQL]")) break;
-                if (output.length() > 500) {
+                if (current.endsWith("[/SQL]")) break;
+                if (current.endsWith("<|eot_id|>")) break;
+                
+                if (output.length() > 2000) {
                     log.warn("Force stopping — output too long");
                     break;
                 }

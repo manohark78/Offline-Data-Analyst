@@ -55,61 +55,48 @@ public class DataAwarePromptBuilder {
      * @param errorMessage  The DuckDB error message (if any)
      * @return Complete prompt ready for LLM inference
      */
+    /**
+     * Build the Llama-3-Instruct prompt with full data context and intent instructions.
+     */
     public String buildPass2Prompt(String userQuery,
                                     String resolvedTable,
                                     String failedSQL,
                                     String errorMessage) {
 
-        StringBuilder prompt = new StringBuilder();
-
-        // ── Task section ────────────────────────────────────────
-        prompt.append("### Task\n")
-              .append("Generate a SQL query to answer [QUESTION]")
-              .append(userQuery)
-              .append("[/QUESTION]\n\n");
-
-        // ── Previous failure context (helps LLM avoid same mistake) ──
-        if (failedSQL != null && errorMessage != null) {
-            prompt.append("### Previous Attempt Failed\n")
-                  .append("Error: ").append(sanitizeError(errorMessage)).append("\n")
-                  .append("Failed SQL: ").append(failedSQL).append("\n\n");
-        }
-
-        // ── Enriched schema with data annotations ───────────────
-        prompt.append("### Database Schema (with data context)\n");
-
+        StringBuilder schema = new StringBuilder();
         if (resolvedTable != null) {
-            prompt.append(buildEnrichedDDL(resolvedTable));
+            schema.append(buildEnrichedDDL(resolvedTable));
         } else {
-            // No resolved table — show all tables (enriched)
             for (TableMetadata table : tableRegistry.getAllTables()) {
-                prompt.append(buildEnrichedDDL(table.getTableName()));
-                prompt.append("\n");
+                schema.append(buildEnrichedDDL(table.getTableName())).append("\n");
             }
         }
 
-        // ── Rules section ───────────────────────────────────────
-        prompt.append("\n### Rules\n")
-              .append("- Use DuckDB SQL syntax\n")
-              .append("- String comparisons MUST use LOWER() on both sides\n")
-              .append("  Example: WHERE LOWER(col) = LOWER('value')\n")
-              .append("- Use ONLY columns that exist in the schema above\n")
-              .append("- If a concept (like gender, age group, category) is not a ")
-              .append("direct column, derive it from existing columns and their values\n");
-
-        if (resolvedTable != null) {
-            prompt.append("- Main table: ").append(resolvedTable).append("\n");
-        }
-
-        // ── Answer section ──────────────────────────────────────
-        prompt.append("\n### Answer\n")
-              .append("Given the schema and data context, the SQL query that answers ")
-              .append("[QUESTION]").append(userQuery).append("[/QUESTION]\n")
-              .append("[SQL]");
-
-        String finalPrompt = prompt.toString();
-        log.debug("Pass 2 prompt ({} chars):\n{}", finalPrompt.length(), finalPrompt);
-        return finalPrompt;
+        return String.format(
+            "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n" +
+            "You are an expert Offline Data Analyst. Your goal is to help users analyze their enterprise data.\n" +
+            "You have two modes of operation:\n" +
+            "1. **CHAT MODE**: If the user is greeting you, asking about your capabilities, or asking general questions, reply naturally.\n" +
+            "2. **QUERY MODE**: If the user asks for data analysis, return the correct SQL query in a [SQL]...[/SQL] block.\n" +
+            "\n" +
+            "CRITICAL RULES FOR QUERY MODE:\n" +
+            "- Database: DuckDB\n" +
+            "- Schema: See below. Each column has a comment showing actual data values or ranges found in the file.\n" +
+            "- Intent Mapping: If the user says a word like 'females', 'adults', or 'expensive', look at the data values in the comments to find the matching column. Do NOT invent columns.\n" +
+            "- Reasoning: Always think about which columns match the user's intent before writing SQL.\n" +
+            "- Safety: Never generate queries that modify data (no DROP, DELETE, UPDATE).\n" +
+            "- Fallback: If you cannot answer the question from the data provided, explain why.\n" +
+            "\n" +
+            "### Database Schema\n%s" +
+            "<|eot_id|><|start_header_id|>user<|end_header_id|>\n" +
+            "%s%s" +
+            "User Question: %s\n" +
+            "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n",
+            schema.toString(),
+            (failedSQL != null ? "My previous SQL attempt failed: " + failedSQL + "\n" : ""),
+            (errorMessage != null ? "The error was: " + sanitizeError(errorMessage) + "\n" : ""),
+            userQuery
+        );
     }
 
     /**

@@ -44,8 +44,22 @@ public class QueryController {
         String generatedSql = null;
 
         try {
-            // Step 1: Generate SQL
+            // Step 1: Generate SQL (or Message)
             generatedSql = sqlCoderService.generateSQL(request.getQuery());
+
+            // Handle Chat Mode (Llama-3 reasoning)
+            if (generatedSql.startsWith("MESSAGE:")) {
+                String chatMsg = generatedSql.substring(8).trim();
+                long elapsed = System.currentTimeMillis() - start;
+                historyService.save(request.getQuery(), null, "MESSAGE", 0, elapsed, request.getSessionId());
+
+                return ResponseEntity.ok(QueryResponse.builder()
+                        .message(chatMsg)
+                        .interpretationSummary("Chat response")
+                        .executionTimeMs(elapsed)
+                        .build());
+            }
+
             log.info("SQL to execute: {}", generatedSql);
 
             // Step 2: ALWAYS execute — never return SQL only
