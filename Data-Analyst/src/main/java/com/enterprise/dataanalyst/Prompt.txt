@@ -1,0 +1,20 @@
+I do not want generic optimization advice.
+
+Instead:
+
+1. Analyze every stage of the pipeline.
+2. Identify every possible bottleneck.
+3. Estimate which stages are likely consuming the most time.
+4. Explain WHY they are expensive.
+5. Suggest architectural improvements.
+6. Suggest which stages should become deterministic.
+7. Suggest which stages should never call the LLM.
+8. Suggest caching opportunities.
+9. Suggest prompt reduction techniques.
+10. Suggest embedding optimizations.
+11. Suggest ways to reduce CPU inference time.
+12. Suggest ways to reduce prompt evaluation time.
+13. Suggest if any stages are redundant.
+14. Suggest a redesigned pipeline if needed.
+
+Critique the architecture like you were reviewing a production enterprise AI system.
