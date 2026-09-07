@@ -1,0 +1,132 @@
+version: "1"
+domain: "generic-analytics"
+embeddingModel: "all-MiniLM-L6-v2"
+purpose: >
+  Structural, domain-agnostic operations that must work on ANY uploaded
+  dataset — not just banking files. Uses <column>/<value> placeholders;
+  at match time, resolve these against the actual dataset's column
+  names from schema profiling (spec Section 7), not against
+  semantic-exemplars.yaml, which is banking-vocabulary-only.
+  This is what lets an unrelated (non-banking) upload still get
+  ranking/filtering/aggregation/describe support.
+
+exemplars:
+  - id: GEN-RANK-001
+    intent: RANK_TOP_N
+    text: "top 10 rows by <column>"
+    entity: dataset
+    metrics: ["<column>"]
+    filters: []
+    groupBy: []
+    sort: { field: "<column>", direction: DESC }
+    limit: 10
+
+  - id: GEN-RANK-002
+    intent: RANK_TOP_N
+    text: "show the 5 lowest values of <column>"
+    entity: dataset
+    metrics: ["<column>"]
+    filters: []
+    groupBy: []
+    sort: { field: "<column>", direction: ASC }
+    limit: 5
+
+  - id: GEN-FILTER-001
+    intent: FILTER_LOOKUP
+    text: "show rows where <column> is greater than <value>"
+    entity: dataset
+    metrics: []
+    filters: [{ field: "<column>", operator: ">", value: "<value>" }]
+    groupBy: []
+    sort: null
+    limit: null
+
+  - id: GEN-FILTER-002
+    intent: FILTER_LOOKUP
+    text: "show rows where <column> equals <value>"
+    entity: dataset
+    metrics: []
+    filters: [{ field: "<column>", operator: "=", value: "<value>" }]
+    groupBy: []
+    sort: null
+    limit: null
+
+  - id: GEN-AGG-001
+    intent: AGGREGATE
+    text: "average of <column>"
+    entity: dataset
+    metrics: ["avg(<column>)"]
+    filters: []
+    groupBy: []
+    sort: null
+    limit: null
+
+  - id: GEN-AGG-002
+    intent: AGGREGATE
+    text: "sum of <column> grouped by <other_column>"
+    entity: dataset
+    metrics: ["sum(<column>)"]
+    filters: []
+    groupBy: ["<other_column>"]
+    sort: null
+    limit: null
+
+  - id: GEN-AGG-003
+    intent: AGGREGATE
+    text: "count rows grouped by <column>"
+    entity: dataset
+    metrics: ["count(*)"]
+    filters: []
+    groupBy: ["<column>"]
+    sort: null
+    limit: null
+
+  - id: GEN-DESCRIBE-001
+    intent: DESCRIBE_DATASET
+    text: "what columns does this file have"
+    entity: dataset
+    metrics: []
+    filters: []
+    groupBy: []
+    sort: null
+    limit: null
+
+  - id: GEN-DESCRIBE-002
+    intent: DESCRIBE_DATASET
+    text: "how many rows are in this dataset"
+    entity: dataset
+    metrics: ["count(*)"]
+    filters: []
+    groupBy: []
+    sort: null
+    limit: null
+
+  - id: GEN-DESCRIBE-003
+    intent: DESCRIBE_DATASET
+    text: "show me unique values in <column>"
+    entity: dataset
+    metrics: []
+    filters: []
+    groupBy: ["<column>"]
+    sort: null
+    limit: null
+
+  - id: GEN-QUALITY-001
+    intent: DATA_QUALITY
+    text: "how many missing values are in <column>"
+    entity: dataset
+    metrics: ["count(*)"]
+    filters: [{ field: "<column>", operator: "is null", value: "" }]
+    groupBy: []
+    sort: null
+    limit: null
+
+  - id: GEN-EXPLAIN-001
+    intent: EXPLAIN_RESULT
+    text: "explain this result"
+    entity: null
+    metrics: []
+    filters: []
+    groupBy: []
+    sort: null
+    limit: null

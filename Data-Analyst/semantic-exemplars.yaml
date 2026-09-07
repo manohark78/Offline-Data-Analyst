@@ -1,0 +1,195 @@
+version: "1"
+domain: "banking-credit-bureau-fintech"
+embeddingModel: "all-MiniLM-L6-v2"     # must match whatever MiniLM variant you actually load
+purpose: >
+  Fast, threshold-gated recognition of domain concepts/synonyms present
+  in a query. This is deliberately simpler than intent-exemplars.yaml:
+  no QueryPlan shape here, just "does this text refer to concept X?".
+  Used to resolve wording (bureau score, txn, borrower, overdue...) to
+  canonical field/entity names, feeding whichever exemplar/QueryPlan
+  ends up being built — regardless of which intent wins.
+defaultThreshold: 0.72   # per-concept override allowed via `threshold:` below
+
+concepts:
+
+  - concept: CUSTOMER
+    type: ENTITY
+    canonical: customer
+    archetypes:
+      - "customer"
+      - "client"
+      - "borrower"
+      - "account holder"
+
+  - concept: ACCOUNT
+    type: ENTITY
+    canonical: account
+    archetypes:
+      - "account"
+      - "loan account"
+
+  - concept: TRANSACTION
+    type: ENTITY
+    canonical: transaction
+    archetypes:
+      - "transaction"
+      - "txn"
+      - "payment"
+      - "transfer"
+
+  - concept: MERCHANT
+    type: ENTITY
+    canonical: merchant
+    archetypes:
+      - "merchant"
+      - "vendor"
+
+  - concept: DPD
+    type: METRIC
+    canonical: dpd
+    archetypes:
+      - "dpd"
+      - "days past due"
+      - "overdue days"
+      - "how many days is this overdue"
+
+  - concept: LOAN_AMOUNT
+    type: METRIC
+    canonical: loan_amount
+    archetypes:
+      - "loan amount"
+      - "principal amount"
+      - "sanctioned amount"
+
+  - concept: OUTSTANDING_AMOUNT
+    type: METRIC
+    canonical: outstanding_amount
+    archetypes:
+      - "outstanding amount"
+      - "outstanding balance"
+      - "remaining balance"
+
+  - concept: CREDIT_SCORE
+    type: METRIC
+    canonical: credit_score
+    archetypes:
+      - "credit score"
+      - "bureau score"
+      - "cibil score"
+
+  - concept: CREDIT_UTILIZATION
+    type: METRIC
+    canonical: credit_utilization
+    archetypes:
+      - "credit utilization"
+      - "utilization ratio"
+      - "how much of the limit is used"
+
+  - concept: EXPOSURE
+    type: METRIC
+    canonical: exposure
+    archetypes:
+      - "exposure"
+      - "total exposure"
+
+  - concept: RECOVERY_AMOUNT
+    type: METRIC
+    canonical: recovery_amount
+    archetypes:
+      - "recovery amount"
+      - "amount recovered"
+
+  - concept: DELINQUENCY
+    type: STATUS
+    canonical: delinquency
+    archetypes:
+      - "delinquent"
+      - "delinquency"
+      - "in default"
+      - "missed payments"
+
+  - concept: NPA
+    type: STATUS
+    canonical: npa
+    archetypes:
+      - "npa"
+      - "non-performing asset"
+      - "non performing account"
+
+  - concept: WRITE_OFF
+    type: STATUS
+    canonical: write_off
+    archetypes:
+      - "written off"
+      - "write-off"
+      - "charged off"
+
+  - concept: SETTLEMENT
+    type: STATUS
+    canonical: settlement
+    archetypes:
+      - "settled"
+      - "settlement"
+
+  - concept: CHARGEBACK
+    type: STATUS
+    canonical: chargeback
+    archetypes:
+      - "chargeback"
+      - "disputed transaction"
+
+  - concept: FRAUD
+    type: STATUS
+    canonical: fraud
+    archetypes:
+      - "fraud"
+      - "fraudulent"
+      - "suspicious activity"
+
+  - concept: STATE
+    type: DIMENSION
+    canonical: state
+    archetypes:
+      - "state"
+      - "region"
+      - "which state"
+
+  - concept: BRANCH
+    type: DIMENSION
+    canonical: branch
+    archetypes:
+      - "branch"
+      - "branch office"
+
+  - concept: TIME_PERIOD
+    type: DIMENSION
+    canonical: period
+    threshold: 0.68  # looser — time phrasing varies a lot
+    archetypes:
+      - "this month"
+      - "last quarter"
+      - "last year"
+      - "between january and february"
+      - "today"
+
+  - concept: PII
+    type: FLAG
+    canonical: pii
+    archetypes:
+      - "personally identifiable information"
+      - "pii"
+      - "sensitive personal data"
+
+  - concept: UPI
+    type: CHANNEL
+    canonical: upi
+    archetypes:
+      - "upi"
+      - "unified payments interface"
+
+  - concept: WALLET
+    type: CHANNEL
+    canonical: wallet
+    archetypes:
+      - "wallet"
+      - "prepaid wallet"

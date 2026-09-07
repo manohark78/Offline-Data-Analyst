@@ -1,0 +1,80 @@
+version: "1"
+domain: "meta-chitchat"
+embeddingModel: "all-MiniLM-L6-v2"
+purpose: >
+  Non-data-query intents. A query matching one of these bypasses
+  QueryPlan/SQL compilation/DuckDB entirely and routes to a canned,
+  templated response — not Qwen. Kept in a separate file so a "hi"
+  doesn't get scored against 40+ banking exemplars, and so it never
+  touches your slowest path for the cheapest possible query.
+
+exemplars:
+  - id: META-GREET-001
+    intent: GREETING
+    text: "hi"
+    response: canned:greeting
+
+  - id: META-GREET-002
+    intent: GREETING
+    text: "hello there"
+    response: canned:greeting
+
+  - id: META-GREET-003
+    intent: GREETING
+    text: "good morning"
+    response: canned:greeting
+
+  - id: META-THANKS-001
+    intent: THANKS
+    text: "thanks"
+    response: canned:thanks
+
+  - id: META-THANKS-002
+    intent: THANKS
+    text: "thank you that helped a lot"
+    response: canned:thanks
+
+  - id: META-CAPABILITY-001
+    intent: CAPABILITY_QUESTION
+    text: "what can you do"
+    response: canned:capabilities
+
+  - id: META-CAPABILITY-002
+    intent: CAPABILITY_QUESTION
+    text: "what kind of questions can I ask you"
+    response: canned:capabilities
+
+  - id: META-CAPABILITY-003
+    intent: CAPABILITY_QUESTION
+    text: "how does this tool work"
+    response: canned:capabilities
+
+  - id: META-SMALLTALK-001
+    intent: SMALL_TALK
+    text: "how are you"
+    response: canned:small_talk
+
+  - id: META-GOODBYE-001
+    intent: GOODBYE
+    text: "bye"
+    response: canned:goodbye
+
+  - id: META-GOODBYE-002
+    intent: GOODBYE
+    text: "that's all for now"
+    response: canned:goodbye
+
+  - id: META-OOS-001
+    intent: OUT_OF_SCOPE
+    text: "write me a poem"
+    response: canned:out_of_scope
+
+  - id: META-OOS-002
+    intent: OUT_OF_SCOPE
+    text: "what's the weather today"
+    response: canned:out_of_scope
+
+  - id: META-OOS-003
+    intent: OUT_OF_SCOPE
+    text: "tell me a joke"
+    response: canned:out_of_scope

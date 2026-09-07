@@ -1,0 +1,293 @@
+version: "1"
+domain: "banking-credit-bureau-fintech"
+embeddingModel: "all-MiniLM-L6-v2"     # must match whatever MiniLM variant you actually load
+exemplars:
+
+  # ---------------------------------------------------------------------
+  # RANKING — "top N by metric"
+  # ---------------------------------------------------------------------
+  - id: EX-RANK-001
+    intent: RANK_TOP_N
+    category: banking.loan
+    text: "top 10 customers by loan amount"
+    entity: customer
+    metrics: [loan_amount]
+    filters: []
+    groupBy: []
+    sort: { field: loan_amount, direction: DESC }
+    limit: 10
+    notes: "canonical top-N ranking query"
+
+  - id: EX-RANK-002
+    intent: RANK_TOP_N
+    category: banking.loan
+    text: "give me the top 5 borrowers by outstanding balance"
+    entity: customer
+    metrics: [outstanding_amount]
+    filters: []
+    groupBy: []
+    sort: { field: outstanding_amount, direction: DESC }
+    limit: 5
+    notes: "synonym check: borrower -> customer, outstanding balance -> outstanding_amount"
+
+  - id: EX-RANK-003
+    intent: RANK_TOP_N
+    category: fintech.transaction
+    text: "show the highest value transactions this month"
+    entity: transaction
+    metrics: [transaction_amount]
+    filters: [{ field: transaction_date, operator: "=", value: "current_month" }]
+    groupBy: []
+    sort: { field: transaction_amount, direction: DESC }
+    limit: 20
+    notes: "implicit limit when user doesn't specify a number"
+
+  # ---------------------------------------------------------------------
+  # FILTER / LOOKUP
+  # ---------------------------------------------------------------------
+  - id: EX-FILTER-001
+    intent: FILTER_LOOKUP
+    category: banking.loan
+    text: "show customers with overdue loans"
+    entity: customer
+    metrics: []
+    filters: [{ field: dpd, operator: ">", value: "0" }]
+    groupBy: []
+    sort: null
+    limit: null
+    notes: "overdue -> dpd > 0"
+
+  - id: EX-FILTER-002
+    intent: FILTER_LOOKUP
+    category: credit_bureau
+    text: "show customers with DPD greater than 90"
+    entity: customer
+    metrics: []
+    filters: [{ field: dpd, operator: ">", value: "90" }]
+    groupBy: []
+    sort: null
+    limit: null
+    notes: "explicit numeric threshold"
+
+  - id: EX-FILTER-003
+    intent: FILTER_LOOKUP
+    category: geography
+    text: "show transactions from Maharashtra"
+    entity: transaction
+    metrics: []
+    filters: [{ field: state, operator: "=", value: "Maharashtra" }]
+    groupBy: []
+    sort: null
+    limit: null
+    notes: "geography filter"
+
+  - id: EX-FILTER-004
+    intent: FILTER_LOOKUP
+    category: credit_bureau
+    text: "show me the customers whose utilization is high"
+    entity: customer
+    metrics: []
+    filters: [{ field: credit_utilization, operator: ">", value: "0.7" }]
+    groupBy: []
+    sort: null
+    limit: null
+    notes: "vague quantifier 'high' mapped to a configurable default threshold — flag as MEDIUM confidence, not HIGH"
+
+  # ---------------------------------------------------------------------
+  # AGGREGATION
+  # ---------------------------------------------------------------------
+  - id: EX-AGG-001
+    intent: AGGREGATE
+    category: banking.delinquency
+    text: "which state has the highest delinquency"
+    entity: customer
+    metrics: [delinquency_rate]
+    filters: []
+    groupBy: [state]
+    sort: { field: delinquency_rate, direction: DESC }
+    limit: 1
+    notes: "aggregation + implicit top-1"
+
+  - id: EX-AGG-002
+    intent: AGGREGATE
+    category: banking.loan
+    text: "average loan amount by state"
+    entity: customer
+    metrics: [avg_loan_amount]
+    filters: []
+    groupBy: [state]
+    sort: null
+    limit: null
+    notes: "plain group-by aggregation, no ranking implied"
+
+  # ---------------------------------------------------------------------
+  # COMPARISON / TIME-BASED
+  # ---------------------------------------------------------------------
+  - id: EX-CMP-001
+    intent: COMPARE_PERIODS
+    category: banking.disbursement
+    text: "compare loan disbursement between January and February"
+    entity: loan
+    metrics: [disbursement_amount]
+    filters:
+      - { field: disbursement_month, operator: "in", value: "January,February" }
+    groupBy: [disbursement_month]
+    sort: null
+    limit: null
+    notes: "two explicit named periods"
+
+  - id: EX-CMP-002
+    intent: COMPARE_PERIODS
+    category: banking.disbursement
+    text: "how does this quarter compare to last year"
+    entity: loan
+    metrics: [disbursement_amount]
+    filters: []
+    groupBy: [period]
+    sort: null
+    limit: null
+    notes: "relative time comparison — needs session context to resolve 'this quarter'"
+
+  # ---------------------------------------------------------------------
+  # FOLLOW-UP MODIFICATIONS (see PICKUP.md for the merge-rule decisions)
+  # ---------------------------------------------------------------------
+  - id: EX-FOLLOWUP-001
+    intent: FOLLOWUP_ADD_FILTER
+    category: followup
+    text: "only for Maharashtra"
+    entity: null
+    metrics: []
+    filters: [{ field: state, operator: "=", value: "Maharashtra" }]
+    groupBy: []
+    sort: null
+    limit: null
+    notes: "modifies previous QueryPlan's state filter — REPLACE not AND, per your merge rule"
+
+  - id: EX-FOLLOWUP-002
+    intent: FOLLOWUP_CHANGE_LIMIT
+    category: followup
+    text: "only show the top 5"
+    entity: null
+    metrics: []
+    filters: []
+    groupBy: []
+    sort: null
+    limit: 5
+    notes: "modifies only the limit field of previous QueryPlan"
+
+  - id: EX-FOLLOWUP-003
+    intent: FOLLOWUP_EXCLUDE
+    category: followup
+    text: "exclude customers from Maharashtra"
+    entity: null
+    metrics: []
+    filters: [{ field: state, operator: "!=", value: "Maharashtra" }]
+    groupBy: []
+    sort: null
+    limit: null
+    notes: "negated filter — distinct intent from FOLLOWUP_ADD_FILTER, don't merge these two"
+
+  - id: EX-FOLLOWUP-004
+    intent: FOLLOWUP_CHANGE_TIME
+    category: followup
+    text: "what about last quarter"
+    entity: null
+    metrics: []
+    filters: [{ field: period, operator: "=", value: "last_quarter" }]
+    groupBy: []
+    sort: null
+    limit: null
+    notes: "replaces previous time filter"
+
+  - id: EX-FOLLOWUP-005
+    intent: FOLLOWUP_EXPLAIN
+    category: followup
+    text: "explain this result"
+    entity: null
+    metrics: []
+    filters: []
+    groupBy: []
+    sort: null
+    limit: null
+    notes: "no QueryPlan change — triggers explanation generation over the last result set instead"
+
+  - id: EX-FOLLOWUP-006
+    intent: FOLLOWUP_REGROUP
+    category: followup
+    text: "show the same result by state"
+    entity: null
+    metrics: []
+    filters: []
+    groupBy: [state]
+    sort: null
+    limit: null
+    notes: "adds/changes groupBy while keeping filters and metrics from previous plan"
+
+  # ---------------------------------------------------------------------
+  # PII / SCHEMA QUESTIONS
+  # ---------------------------------------------------------------------
+  - id: EX-PII-001
+    intent: PII_CHECK
+    category: schema
+    text: "does this file contain PII"
+    entity: dataset
+    metrics: []
+    filters: []
+    groupBy: []
+    sort: null
+    limit: null
+    notes: "routes to dataset profiling output, not DuckDB"
+
+  - id: EX-PII-002
+    intent: PII_COLUMN_LIST
+    category: schema
+    text: "which columns contain personally identifiable information"
+    entity: dataset
+    metrics: []
+    filters: []
+    groupBy: []
+    sort: null
+    limit: null
+    notes: "routes to the column-level PII classification report"
+
+  # ---------------------------------------------------------------------
+  # CREDIT BUREAU / FRAUD / FINTECH SYNONYM COVERAGE
+  # ---------------------------------------------------------------------
+  - id: EX-CB-001
+    intent: FILTER_LOOKUP
+    category: credit_bureau
+    text: "show customers with a bureau score below 650"
+    entity: customer
+    metrics: []
+    filters: [{ field: credit_score, operator: "<", value: "650" }]
+    groupBy: []
+    sort: null
+    limit: null
+    notes: "synonym check: bureau score -> credit_score"
+
+  - id: EX-CB-002
+    intent: FILTER_LOOKUP
+    category: banking.npa
+    text: "list accounts that have been written off"
+    entity: account
+    metrics: []
+    filters: [{ field: status, operator: "=", value: "write_off" }]
+    groupBy: []
+    sort: null
+    limit: null
+    notes: "write-off status filter"
+
+  - id: EX-FIN-001
+    intent: FILTER_LOOKUP
+    category: fintech.transaction
+    text: "show failed UPI transactions today"
+    entity: transaction
+    metrics: []
+    filters:
+      - { field: channel, operator: "=", value: "UPI" }
+      - { field: status, operator: "=", value: "failed" }
+      - { field: transaction_date, operator: "=", value: "today" }
+    groupBy: []
+    sort: null
+    limit: null
+    notes: "multi-filter, channel + status + time"
