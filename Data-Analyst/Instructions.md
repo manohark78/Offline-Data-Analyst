@@ -51,11 +51,17 @@ User query (NL text)
       │  - resolves relative/fuzzy concepts ("high", "recent", "top") using
       │    actual column statistics (percentiles, date ranges) — never fixed numbers
       ▼
-[5] ClauseCompiler (deterministic)
-      │  - builds SELECT / WHERE / GROUP BY / ORDER BY / aggregation clauses
-      │    from the resolved intermediate representation (§5)
+[5] DeterministicPlanBuilder  ◄── assembles the IR (§5) from the outputs of
+      │                            [1]-[4]: intent, resolved column/value refs,
+      │                            matched archetype shape, resolved concepts.
+      │                            This is the ONLY component that builds an IR
+      │                            from scratch on the deterministic path.
       ▼
-      ├─ high confidence ──► DuckDB SQL execution ──► result + explanation
+[6] ClauseCompiler (deterministic)
+      │  - builds SELECT / WHERE / GROUP BY / ORDER BY / aggregation clauses
+      │    from the assembled intermediate representation (§5)
+      ▼
+      ├─ high confidence ──► [7] QueryExecutionService (DuckDB) ──► [8] ResultExplanationService ──► result + explanation
       │
       └─ low confidence / no match (margin check failed, §4.1/§4.2/§4.4)
                 │
@@ -69,13 +75,13 @@ User query (NL text)
                 ▼
          flat key:value slots ──► schema/IR validation (same gate as §5)
                 │
-                ├─ valid ──► same ClauseCompiler ──► DuckDB SQL execution ──► result + explanation
+                ├─ valid ──► same ClauseCompiler ──► QueryExecutionService ──► ResultExplanationService ──► result + explanation
                 │
                 └─ invalid (references impossible value, IR still ambiguous)
                         │
                         ▼
                   retry LLM call with the validation error appended as
-                  context (max 2 retries, §4.6)
+                  context (max 2 retries, §4.5)
                         │
                         └─ still invalid after retries ──► [7] user clarification
                                                             (true last resort only)
@@ -101,9 +107,12 @@ constrained LLM path itself fails validation after retries.
 | `SemanticEngine` | Map query tokens → actual column/value names via embeddings | Assume domain vocabulary |
 | `ExemplarMatcher` | Match query shape to a known archetype template | Return a match below the margin threshold |
 | `ConceptResolver` | Turn fuzzy terms into concrete filters using live column stats | Use fixed thresholds (e.g. "high = >700") |
-| `ClauseCompiler` | Deterministically assemble SQL clauses from the IR | Accept free-form SQL from the LLM |
-| `LlmFallbackService` | Fill IR slots only when 1–4 fail or are low-confidence | Generate SQL directly |
-| `AiOrchestrator` | Coordinate the above, stream via SSE | Contain business/matching logic itself |
+| `DeterministicPlanBuilder` | Assemble the single IR (§5) from IntentClassifier + SemanticEngine + ExemplarMatcher + ConceptResolver outputs — the ONLY place an IR is built from scratch on the deterministic path | Resolve columns/values itself, apply matching logic itself — it only combines already-resolved pieces |
+| `ClauseCompiler` | Deterministically assemble SQL clauses from an already-assembled, already-validated IR | Accept free-form SQL from the LLM, or build/modify an IR itself |
+| `LlmFallbackService` | Fill IR slots only when 1–4 fail or are low-confidence; owns the GBNF call + validate + retry loop (§4.5) | Generate SQL directly, ask the user before its own retries are exhausted |
+| `QueryExecutionService` | Execute compiled SQL against the correct DuckDB table (scoped by `sessionId` + `datasetId`) | Contain any matching/compilation logic |
+| `ResultExplanationService` | Turn a query result + IR into a natural-language explanation for the user/SSE stream | Re-derive or second-guess the IR |
+| `AiOrchestrator` | Coordinate the above, stream via SSE | Contain business/matching/IR-building logic itself |
 
 ---
 
@@ -264,6 +273,11 @@ produce this same structure. This is the seam that keeps the LLM sandboxed:
 
 ```
 IR {
+  sessionId: string
+  datasetId: string          // which uploaded sheet/table within the session —
+                              // a session may hold multiple sheets (Phase 1), so
+                              // this must be explicit on every IR and every query
+                              // request; never assume "the" table for a session
   intent: enum(data_analysis | followup | explanation | chit_chat)
   projections: [column_ref]        // what to SELECT
   filters: [ {column_ref, operator, value_or_stat_ref} ]   // WHERE
@@ -273,6 +287,15 @@ IR {
   limit: int | null
 }
 ```
+
+**Who builds it:** on the deterministic path, `DeterministicPlanBuilder` is the
+single component that constructs this object, from the already-resolved outputs of
+IntentClassifier, SemanticEngine, ExemplarMatcher, and ConceptResolver — none of
+those four components build an IR themselves, they each produce one piece of it.
+On the LLM path, `LlmFallbackService` fills the same structure directly from the
+grammar-constrained flat-slot output (§4.3/§4.5). Either way, the IR that reaches
+`ClauseCompiler` has already been validated against the live schema for the
+`datasetId` it names — that's the seam that makes LLM hallucination harmless.
 
 `column_ref` and `value_or_stat_ref` are always resolved against the **actual
 uploaded schema** before the ClauseCompiler runs — this is the validation gate that
