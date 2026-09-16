@@ -36,38 +36,67 @@ These apply to every file, every phase, no exceptions:
 User query (NL text)
       │
       ▼
-[1] IntentClassifier  ──────────────► (chit_chat | data_analysis | followup | explanation | ...)
-      │  embedding similarity to exemplars, WITH MARGIN CHECK (see §4.1)
+[1] QueryStructureResolver  ◄── the missing stage: takes the RAW query text and
+      │                          segments/tags it into candidate spans — nothing
+      │                          downstream can start from raw text otherwise.
+      │  - generates candidate n-gram spans from the query text
+      │  - tags each span as a column-mention, value-mention, or an
+      │    UnresolvedFuzzyConcept phrase ("high", "recent", "top 5"), using
+      │    embedding similarity against the uploaded schema's vocabulary and
+      │    against the concept-exemplar set
+      │  - does NOT resolve a span to a final column/value identity, and does NOT
+      │    convert an UnresolvedFuzzyConcept to a concrete filter value — it only
+      │    segments and tags; resolution is [3]'s and [5]'s job respectively.
+      │    An UnresolvedFuzzyConcept still carries a raw, UNRESOLVED column span
+      │    of its own (e.g. TOP_N's "top 5 branches" has both a parsed count [5,
+      │    plain number-parsing, not column resolution] and an unresolved column
+      │    span "branches") — that span rides along through [3] like any other
+      │    candidate column span; it does not get special-cased
+      │  - output: candidate column/value spans (→ [3]) +
+      │    List<UnresolvedFuzzyConcept> whose embedded column spans ALSO go to [3]
       ▼
-[2] SemanticEngine
-      │  - resolves column/value references against the ACTUAL uploaded schema
-      │  - Levenshtein + embedding similarity, margin-checked
+[2] IntentClassifier  ──────────────► (chit_chat | data_analysis | followup | explanation | ...)
+      │  operates on the raw query text independently of [1]; embedding similarity
+      │  to exemplars, WITH MARGIN CHECK (see §4.1)
       ▼
-[3] ExemplarMatcher (archetype/template layer)
+[3] SemanticEngine
+      │  - resolves ALL column/value spans [1] produced against the ACTUAL
+      │    uploaded schema, including the column span embedded in each
+      │    UnresolvedFuzzyConcept — treated identically to any other candidate
+      │    span, just tagged with which concept (if any) it belongs to
+      │  - Levenshtein + embedding similarity, margin-checked, top-k (§4.4)
+      ▼
+[4] ExemplarMatcher (archetype/template layer)
       │  - matches query structure to a known query-shape (archetype)
       │  - MUST pass margin check (§4.2) or falls through to LLM
       ▼
-[4] ConceptResolver
-      │  - resolves relative/fuzzy concepts ("high", "recent", "top") using
-      │    actual column statistics (percentiles, date ranges) — never fixed numbers
+[5] ConceptResolver
+      │  - takes each UnresolvedFuzzyConcept from [1], paired with its resolved
+      │    ColumnRef from [3] (matched by span id — same join every other
+      │    resolved span goes through), and produces a final, resolved
+      │    FuzzyConcept with a concrete filter value, using actual column
+      │    statistics (percentiles, date ranges) — never fixed numbers
       ▼
-[5] DeterministicPlanBuilder  ◄── assembles the IR (§5) from the outputs of
-      │                            [1]-[4]: intent, resolved column/value refs,
+[6] DeterministicPlanBuilder  ◄── assembles the IR (§5) from the outputs of
+      │                            [1]-[5]: intent, resolved column/value refs,
       │                            matched archetype shape, resolved concepts.
       │                            This is the ONLY component that builds an IR
       │                            from scratch on the deterministic path.
       ▼
-[6] ClauseCompiler (deterministic)
+[7] ClauseCompiler (deterministic)
       │  - builds SELECT / WHERE / GROUP BY / ORDER BY / aggregation clauses
       │    from the assembled intermediate representation (§5)
       ▼
-      ├─ high confidence ──► [7] QueryExecutionService (DuckDB) ──► [8] ResultExplanationService ──► result + explanation
+      ├─ high confidence ──► [8] QueryExecutionService (DuckDB) ──► [9] ResultExplanationService ──► result + explanation
       │
       └─ low confidence / no match (margin check failed, §4.1/§4.2/§4.4)
                 │
                 ▼
-         [6] LLM Fallback (Qwen2.5-3B-Instruct) — invoked immediately, no user
-             prompt at this point
+         LLM Fallback (Qwen2.5-3B-Instruct) — invoked immediately, no user
+             prompt at this point; receives the raw query text directly (it does
+             NOT depend on QueryStructureResolver's output — a constrained LLM can
+             parse the raw query itself, which is precisely why it's the fallback
+             for cases where [1]-[5] couldn't)
                 │  GBNF-constrained decoding (§4.3): grammar restricts output to
                 │  the flat key:value IR format AND to the top-k candidate
                 │  column/value names from §4.4 — model cannot emit a column
@@ -83,7 +112,7 @@ User query (NL text)
                   retry LLM call with the validation error appended as
                   context (max 2 retries, §4.5)
                         │
-                        └─ still invalid after retries ──► [7] user clarification
+                        └─ still invalid after retries ──► user clarification
                                                             (true last resort only)
 ```
 
@@ -103,13 +132,14 @@ constrained LLM path itself fails validation after retries.
 
 | Component | Responsibility | Must NOT do |
 |---|---|---|
+| `QueryStructureResolver` | Segment/tag the raw query text into candidate column/value spans and `UnresolvedFuzzyConcept` phrases (each still carrying its own unresolved column span) — the only component that reads raw query text before it's broken into resolvable pieces | Resolve a span to a final column/value identity, or convert an `UnresolvedFuzzyConcept` to a concrete filter value — it only segments and tags |
 | `IntentClassifier` | Route query to chit-chat / data-analysis / followup / explanation | Use keyword lists |
-| `SemanticEngine` | Map query tokens → actual column/value names via embeddings | Assume domain vocabulary |
+| `SemanticEngine` | Map every candidate span `QueryStructureResolver` produced — including the column span inside each `UnresolvedFuzzyConcept` — to actual column/value names via embeddings | Assume domain vocabulary, or parse raw query text itself |
 | `ExemplarMatcher` | Match query shape to a known archetype template | Return a match below the margin threshold |
-| `ConceptResolver` | Turn fuzzy terms into concrete filters using live column stats | Use fixed thresholds (e.g. "high = >700") |
-| `DeterministicPlanBuilder` | Assemble the single IR (§5) from IntentClassifier + SemanticEngine + ExemplarMatcher + ConceptResolver outputs — the ONLY place an IR is built from scratch on the deterministic path | Resolve columns/values itself, apply matching logic itself — it only combines already-resolved pieces |
+| `ConceptResolver` | Pair each `UnresolvedFuzzyConcept` with its resolved `ColumnRef` from `SemanticEngine`, then turn it into a resolved `FuzzyConcept` with a concrete filter value using live column stats | Use fixed thresholds (e.g. "high = >700"), parse raw query text itself, or resolve a column span itself |
+| `DeterministicPlanBuilder` | Assemble the single IR (§5) from QueryStructureResolver + IntentClassifier + SemanticEngine + ExemplarMatcher + ConceptResolver outputs — the ONLY place an IR is built from scratch on the deterministic path | Resolve columns/values itself, apply matching logic itself — it only combines already-resolved pieces |
 | `ClauseCompiler` | Deterministically assemble SQL clauses from an already-assembled, already-validated IR | Accept free-form SQL from the LLM, or build/modify an IR itself |
-| `LlmFallbackService` | Fill IR slots only when 1–4 fail or are low-confidence; owns the GBNF call + validate + retry loop (§4.5) | Generate SQL directly, ask the user before its own retries are exhausted |
+| `LlmFallbackService` | Fill IR slots only when the deterministic chain fails or is low-confidence; receives the raw query text directly (not QueryStructureResolver's output); owns the GBNF call + validate + retry loop (§4.5) | Generate SQL directly, ask the user before its own retries are exhausted |
 | `QueryExecutionService` | Execute compiled SQL against the correct DuckDB table (scoped by `sessionId` + `datasetId`) | Contain any matching/compilation logic |
 | `ResultExplanationService` | Turn a query result + IR into a natural-language explanation for the user/SSE stream | Re-derive or second-guess the IR |
 | `AiOrchestrator` | Coordinate the above, stream via SSE | Contain business/matching/IR-building logic itself |
@@ -290,8 +320,9 @@ IR {
 
 **Who builds it:** on the deterministic path, `DeterministicPlanBuilder` is the
 single component that constructs this object, from the already-resolved outputs of
-IntentClassifier, SemanticEngine, ExemplarMatcher, and ConceptResolver — none of
-those four components build an IR themselves, they each produce one piece of it.
+QueryStructureResolver, IntentClassifier, SemanticEngine, ExemplarMatcher, and
+ConceptResolver — none of those five components build an IR themselves, they each
+produce one piece of it.
 On the LLM path, `LlmFallbackService` fills the same structure directly from the
 grammar-constrained flat-slot output (§4.3/§4.5). Either way, the IR that reaches
 `ClauseCompiler` has already been validated against the live schema for the
