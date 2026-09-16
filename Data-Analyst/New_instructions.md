@@ -71,7 +71,7 @@ Files needed:
 
 ---
 
-## Phase 3 — Exemplar Matching & Clause Compiler (~9 files)
+## Phase 3 — Exemplar Matching, Plan Assembly & Clause Compiler (~10 files)
 
 ```
 Implement the deterministic matching + compilation layer per ARCHITECTURE_AND_RULES.md
@@ -82,17 +82,25 @@ Files needed:
 - ConceptResolver: converts fuzzy terms ("high", "recent", "top N") into concrete
   filter values using the ColumnProfile statistics from Phase 1 — never fixed
   numeric thresholds
-- IntermediateRepresentation (IR): the exact structure from §5 — projections,
-  filters, aggregations, group_by, order_by, limit
-- ClauseCompiler: builds SELECT/WHERE/GROUP BY/ORDER BY SQL fragments from a
-  validated IR, validating every column_ref against the live schema before emitting
-  SQL (this is the sandboxing gate mentioned in §2 — reject anything referencing a
-  nonexistent column)
+- IntermediateRepresentation (IR): the exact structure from §5 — sessionId,
+  datasetId, projections, filters, aggregations, group_by, order_by, limit
+- DeterministicPlanBuilder: the ONLY component that assembles an IR from scratch on
+  the deterministic path — combines the intent (Phase 2 IntentClassifier), resolved
+  column/value refs (Phase 2 SemanticEngine), matched archetype shape (this phase's
+  ExemplarMatcher), and resolved concepts (this phase's ConceptResolver) into one IR.
+  Does not itself resolve or match anything — it only assembles already-resolved
+  pieces (§3 table)
+- ClauseCompiler: builds SELECT/WHERE/GROUP BY/ORDER BY SQL fragments from the IR
+  DeterministicPlanBuilder hands it, validating every column_ref against the live
+  schema for that IR's datasetId before emitting SQL (this is the sandboxing gate
+  mentioned in §2 — reject anything referencing a nonexistent column)
 - Archetype resource file: 8–10 domain-agnostic query-shape templates (single
   filter, multi-filter, aggregation, group+sort, top-N, trend-over-time, comparison,
   followup-refinement), each with 4–6 paraphrase exemplars
 - Unit tests: one per archetype shape, plus a test asserting an IR referencing an
-  invalid column is rejected before reaching SQL
+  invalid column is rejected before reaching SQL, plus a DeterministicPlanBuilder
+  test asserting it correctly merges four independently-mocked component outputs
+  into one IR without doing any resolution itself
 ```
 
 ---
@@ -131,25 +139,35 @@ Files needed:
 
 ---
 
-## Phase 5 — Orchestration & Streaming (~7 files)
+## Phase 5 — Orchestration, Execution & Streaming (~9 files)
 
 ```
 Implement the orchestration/streaming layer per ARCHITECTURE_AND_RULES.md §2.
 Files needed:
 - AiOrchestrator: wires IntentClassifier → SemanticEngine → ExemplarMatcher →
-  ConceptResolver → ClauseCompiler; on any margin-check failure, calls
-  LlmFallbackService directly (no user-facing step in between, per §4.5); only
-  surfaces a clarification response to the user if LlmFallbackService itself
-  returns "needs clarification" after its internal retries — contains NO
-  matching/business logic itself, only coordination
+  ConceptResolver → DeterministicPlanBuilder → ClauseCompiler → QueryExecutionService
+  → ResultExplanationService; on any margin-check failure, calls LlmFallbackService
+  directly (no user-facing step in between, per §4.5); only surfaces a clarification
+  response to the user if LlmFallbackService itself returns "needs clarification"
+  after its internal retries — contains NO matching/business/IR-building logic
+  itself, only coordination
+- QueryExecutionService: executes the SQL ClauseCompiler produced against the
+  correct DuckDB table for that IR's `sessionId` + `datasetId` (a session may hold
+  multiple uploaded sheets, per Phase 1 — never assume a single table per session);
+  returns the raw result set
+- ResultExplanationService: turns a QueryExecutionService result + the IR that
+  produced it into a natural-language explanation string for the SSE stream — does
+  not re-derive or second-guess the IR, only describes what was already computed
 - SseStreamController: Spring SSE endpoint streaming partial results/explanation
   tokens to the frontend
-- QueryController: REST endpoint accepting a query + sessionId, delegating to
-  AiOrchestrator
+- QueryController: REST endpoint accepting query + sessionId + datasetId (not
+  sessionId alone — a session can contain multiple uploaded sheets from Phase 1, so
+  every query must say which one it targets), delegating to AiOrchestrator
 - ExportService: CSV/Excel export of a result set via Apache POI
 - Integration test: end-to-end query through AiOrchestrator against an in-memory
-  DuckDB table, covering both the deterministic path and a forced-ambiguous path
-  that reaches LlmFallbackService
+  DuckDB table, covering both the deterministic path (through
+  DeterministicPlanBuilder/QueryExecutionService/ResultExplanationService) and a
+  forced-ambiguous path that reaches LlmFallbackService
 ```
 
 ---
@@ -159,13 +177,16 @@ Files needed:
 ```
 Implement conversation/session persistence per ARCHITECTURE_AND_RULES.md.
 Files needed:
-- ConversationHistoryService: stores messages + query results per session in DuckDB,
-  persisted across application restarts
+- ConversationHistoryService: stores messages + the IR (including `datasetId`) +
+  query results per session in DuckDB, persisted across application restarts
 - ConversationRepository: DuckDB-backed CRUD for conversation entries
-- FollowupContextResolver: uses IntentClassifier's `followup` intent + prior IR from
-  ConversationHistoryService to resolve pronouns/implicit references ("now sort by
-  that", "add region too") into a new IR — reuses ClauseCompiler, does not
-  special-case any specific follow-up phrase
+- FollowupContextResolver: uses IntentClassifier's `followup` intent + the prior
+  IR (including its `datasetId`) from ConversationHistoryService to resolve
+  pronouns/implicit references ("now sort by that", "add region too") into a new
+  IR — hands the merged pieces to `DeterministicPlanBuilder` (Phase 3) the same
+  way the first-turn path does; does not call ClauseCompiler directly and does not
+  special-case any specific follow-up phrase. A followup always inherits the prior
+  turn's `datasetId` unless the new query explicitly names a different sheet
 - DTOs for conversation entry / history response
 - Unit tests: a two-turn conversation where turn 2 is a followup, asserting the
   resolved IR carries over the correct prior filters
