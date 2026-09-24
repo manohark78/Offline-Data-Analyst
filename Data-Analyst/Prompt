@@ -1,0 +1,622 @@
+Below is a copy-paste-ready master prompt for creating your local AI coding assistant.
+
+```text
+You are a senior software architect and developer. Design and implement a fully local, privacy-first AI coding assistant similar in workflow to Claude Code, but built with Java and Spring Boot.
+
+The assistant must help with:
+
+- Code analysis
+- Debugging
+- Error explanation
+- Refactoring
+- Feature planning
+- Architecture design
+- Test generation
+- Documentation
+- Code review
+- Repository exploration
+- Multi-file changes
+- Git-aware development workflows
+- General technical thinking and problem solving
+
+## Core technical constraints
+
+Use the following technology stack:
+
+- Java
+- Spring Boot
+- llama.cpp Java binding from de.kherud
+- GGUF models already available on the local machine
+- Maven or Gradle, but choose one and remain consistent
+
+Strictly obey these constraints:
+
+1. Do not call any third-party API.
+2. Do not use OpenAI, Anthropic, Google, Azure, Hugging Face APIs, or similar services.
+3. Do not download models or any other internet resources.
+4. The application must work completely offline.
+5. Only load GGUF models from user-configured local filesystem paths.
+6. Do not use internet-based dependency resolution during runtime.
+7. Do not upload source code, prompts, logs, repository files, or user data anywhere.
+8. Do not silently send telemetry or analytics.
+9. Do not create unnecessary files on disk.
+10. Do not save generated responses, intermediate prompts, repository copies, embeddings, indexes, or chat history to disk unless the user explicitly requests it.
+11. Avoid writing temporary files during inference. Prefer in-memory processing.
+12. If temporary files are unavoidable, use bounded-size temporary files and delete them immediately after use.
+13. Never duplicate an entire repository in memory or on disk.
+14. Use streaming, pagination, file-size limits, and bounded buffers to prevent memory and disk exhaustion.
+
+## Main product goal
+
+Build a command-line-first local coding assistant with an optional Spring Boot service layer.
+
+The primary interface should feel similar to a local version of Claude Code:
+
+- The user can open a repository.
+- The user can register or tag repositories.
+- The user can ask questions about one repository or several repositories.
+- The assistant can inspect files, search code, explain architecture, plan changes, and optionally modify files.
+- The user must explicitly approve file modifications and dangerous commands.
+- The assistant should maintain useful context without storing large persistent data.
+
+## Repository management
+
+Implement repository registration using filesystem paths instead of copying repositories.
+
+Example commands:
+
+```text
+codeai repo add my-project /home/user/projects/my-project
+codeai repo list
+codeai repo remove my-project
+codeai repo tag my-project backend java spring
+codeai repo untag my-project spring
+codeai repo info my-project
+codeai use my-project
+```
+
+Repository metadata should be lightweight. Store only minimal metadata such as:
+
+- Repository name
+- Absolute path
+- Tags
+- Optional description
+- Optional preferred language
+- Optional build command
+- Optional test command
+- Optional run command
+
+Do not index or duplicate every file by default.
+
+If persistent metadata is necessary, use a small local configuration file or embedded lightweight database. Make persistence optional and clearly documented.
+
+## Supported languages
+
+The assistant must support at least:
+
+- Java
+- Python
+- HTML
+- CSS
+- JavaScript
+- TypeScript
+- Node.js
+- JSON
+- YAML
+- XML
+- SQL
+- Bash
+- Markdown
+- Dockerfile
+- Properties files
+- Shell scripts
+
+Design the language system so additional languages can be added through configuration rather than rewriting the core system.
+
+The assistant should detect:
+
+- Programming language
+- Framework
+- Build system
+- Package manager
+- Entry points
+- Test framework
+- Configuration files
+- Common project structure
+- Git repository status
+
+For Java projects, provide first-class support for:
+
+- Spring Boot
+- Maven
+- Gradle
+- JUnit
+- Mockito
+- Spring tests
+- application.properties
+- application.yml
+- REST controllers
+- Services
+- Repositories
+- Entities
+- DTOs
+- Configuration classes
+
+## CLI commands
+
+Design a command structure similar to:
+
+```text
+codeai
+codeai chat
+codeai chat --repo my-project
+codeai ask "Explain this repository"
+codeai analyze
+codeai debug
+codeai plan
+codeai review
+codeai test
+codeai refactor
+codeai explain path/to/File.java
+codeai search "authentication logic"
+codeai edit path/to/File.java
+codeai diff
+codeai status
+codeai model list
+codeai model use /models/coder-model.gguf
+codeai config
+```
+
+Interactive mode should support commands such as:
+
+```text
+/help
+/repos
+/use my-project
+/model
+/context
+/files
+/search authentication
+/plan
+/diff
+/undo
+/clear
+/exit
+```
+
+The assistant should clearly distinguish between:
+
+- Conversation
+- Read-only analysis
+- Proposed changes
+- Applied changes
+- Shell commands
+- Git operations
+
+## Local model management
+
+Implement a local GGUF model manager.
+
+It must support:
+
+- Registering local GGUF model paths
+- Listing available models
+- Selecting the active model
+- Configuring context size
+- Configuring temperature
+- Configuring maximum output tokens
+- Configuring CPU threads
+- Configuring GPU layers if supported by the local llama.cpp build
+- Configuring batch size
+- Unloading models from memory
+- Loading models lazily
+- Explicitly releasing model resources
+
+Example:
+
+```text
+codeai model add coder /models/coder.gguf
+codeai model add reasoning /models/reasoning.gguf
+codeai model list
+codeai model use coder
+codeai model unload
+```
+
+Do not scan the entire disk looking for models. Models must be explicitly registered by path.
+
+If a configured model path does not exist, show a clear error. Do not try to download a replacement.
+
+Use the de.kherud llama.cpp integration correctly and isolate model-specific code behind a clean interface such as:
+
+```java
+interface LocalModelProvider {
+    ModelResponse generate(ModelRequest request);
+    Stream<ModelToken> stream(ModelRequest request);
+    void load();
+    void unload();
+    ModelMetadata metadata();
+}
+```
+
+Use streaming output wherever possible so responses appear incrementally.
+
+## Context management
+
+The assistant must not send an entire repository to the model automatically.
+
+Implement a context manager that:
+
+- Reads only relevant files
+- Limits the number of files
+- Limits file size
+- Truncates very large files safely
+- Removes irrelevant sections
+- Prioritizes files based on the user request
+- Includes file paths and line numbers
+- Includes relevant imports and surrounding code
+- Includes Git diffs when appropriate
+- Excludes binary files
+- Excludes secrets
+- Excludes generated files
+- Excludes build output
+- Avoids duplicate content
+
+Default exclusions should include:
+
+```text
+.git
+node_modules
+target
+build
+dist
+out
+.idea
+.vscode
+.venv
+__pycache__
+coverage
+logs
+tmp
+temp
+*.class
+*.jar
+*.war
+*.zip
+*.tar
+*.gz
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp4
+*.mov
+*.exe
+*.bin
+```
+
+Also detect and protect likely secrets such as:
+
+```text
+.env
+*.pem
+*.key
+*.p12
+*.jks
+credentials.json
+secrets.yml
+application-secret.yml
+```
+
+Never expose secret values to the model unless the user explicitly confirms it.
+
+Use a bounded context budget. If context is too large, explain what was omitted and why.
+
+## Repository tools
+
+Implement safe local tools for:
+
+- Listing files
+- Reading files
+- Reading selected line ranges
+- Searching text
+- Searching by filename
+- Finding symbols
+- Finding references
+- Inspecting Git status
+- Inspecting Git diff
+- Inspecting Git history
+- Running tests
+- Running build commands
+- Running linters
+- Running formatters
+- Applying patches
+- Reverting assistant-created changes
+
+Every tool must have:
+
+- Input validation
+- Timeout handling
+- Output-size limits
+- Error handling
+- Cancellation support
+- Logging that does not expose secrets
+- A dry-run mode where appropriate
+
+Do not execute arbitrary shell commands without user approval.
+
+Commands categorized as dangerous must always require confirmation, including:
+
+- rm
+- mv outside the repository
+- chmod
+- chown
+- sudo
+- systemctl
+- docker commands
+- database deletion
+- git reset --hard
+- git clean
+- force push
+- recursive deletion
+- package installation
+- network commands
+
+## Editing workflow
+
+The assistant must never modify files silently.
+
+Use this workflow:
+
+1. Analyze the request.
+2. Inspect relevant repository files.
+3. Explain the proposed approach.
+4. Show the files that will change.
+5. Generate a patch or diff.
+6. Ask for explicit confirmation.
+7. Apply the patch only after confirmation.
+8. Show the final diff.
+9. Optionally run tests after confirmation.
+10. Report success, failures, and remaining risks.
+
+Provide commands such as:
+
+```text
+/plan
+/apply
+/diff
+/undo
+```
+
+Support patch-based edits instead of rewriting entire files.
+
+Before applying a patch:
+
+- Verify the original file content has not changed.
+- Check that the patch applies cleanly.
+- Create an in-memory backup where possible.
+- Never create unlimited backup copies on disk.
+- Never overwrite files outside the selected repository without confirmation.
+
+## Planning mode
+
+Planning responses should include:
+
+- Understanding of the problem
+- Assumptions
+- Relevant files
+- Proposed implementation steps
+- Potential risks
+- Testing strategy
+- Rollback strategy
+- Open questions
+
+Do not modify files while in planning mode.
+
+## Debugging mode
+
+For debugging, collect only the minimum required information:
+
+- Error message
+- Stack trace
+- Relevant source files
+- Recent Git diff
+- Build configuration
+- Runtime configuration, excluding secrets
+- Reproduction steps
+
+The assistant should identify:
+
+- Probable root cause
+- Evidence
+- Alternative explanations
+- Recommended fix
+- Tests to verify the fix
+
+Do not claim certainty when the evidence is incomplete.
+
+## Conversation memory
+
+Use session memory only while the current process is running unless the user explicitly enables persistence.
+
+By default:
+
+- Do not write chat history to disk.
+- Do not write prompts to disk.
+- Do not save generated code automatically.
+- Do not create embeddings.
+- Do not create a vector database.
+- Do not create repository snapshots.
+
+If persistent memory is later implemented, make it:
+
+- Explicitly opt-in
+- Size-limited
+- User-deletable
+- Repository-scoped
+- Excluded from Git
+- Free of secrets by default
+
+## Disk-space protection
+
+Disk usage is a critical requirement.
+
+Implement:
+
+- No automatic repository copies
+- No automatic model copies
+- No unlimited logs
+- No unlimited chat history
+- No automatic embeddings
+- No generated cache unless explicitly enabled
+- In-memory buffers with hard limits
+- Maximum output-size limits
+- Log rotation or disabled file logging
+- Automatic cleanup of temporary files
+- Disk-space checks before optional writes
+- Clear warnings when disk space is low
+
+Add configuration similar to:
+
+```yaml
+storage:
+  persistentChatHistory: false
+  persistentIndex: false
+  cacheEnabled: false
+  maxCacheSizeMb: 0
+  maxLogSizeMb: 10
+  maxTempFileSizeMb: 50
+  cleanupOnExit: true
+  lowDiskSpaceWarningMb: 1024
+```
+
+The application must continue working in a read-only or nearly-full disk environment whenever possible.
+
+## Security model
+
+Use a local-first security model:
+
+- No external network calls
+- No telemetry
+- No hidden subprocesses
+- No silent file modifications
+- No access outside registered repositories unless explicitly approved
+- No secret disclosure
+- No unapproved destructive commands
+- Clear permission prompts
+- Audit actions in memory by default
+- Safe error messages
+
+## Architecture
+
+Use clean separation between:
+
+- CLI layer
+- Spring Boot application layer
+- Conversation orchestration
+- Local model provider
+- Context manager
+- Repository manager
+- Tool execution layer
+- Patch/edit engine
+- Permission/approval system
+- Configuration
+- Optional persistence
+- Output formatting
+
+Prefer interfaces and dependency injection.
+
+Use testable components and avoid static global state.
+
+Provide:
+
+- Unit tests
+- Integration tests
+- CLI tests
+- Model-provider tests using a mock provider
+- Security tests
+- Disk-usage tests
+- Patch-application tests
+- Large-file and large-repository tests
+
+The application must be usable even when no model is loaded. In that situation, show a helpful message explaining how to register a local GGUF model.
+
+## Implementation process
+
+Build the system incrementally in phases:
+
+### Phase 1: Foundation
+
+- Project setup
+- Configuration
+- CLI shell
+- Repository registration
+- Local model registration
+- Basic llama.cpp integration
+- Streaming response
+
+### Phase 2: Read-only coding assistant
+
+- File listing
+- File reading
+- Search
+- Repository summaries
+- Code explanation
+- Language detection
+- Context limits
+
+### Phase 3: Planning and debugging
+
+- Planning mode
+- Debugging mode
+- Git status and diff
+- Test execution
+- Structured responses
+
+### Phase 4: Safe editing
+
+- Patch generation
+- Diff preview
+- User confirmation
+- Patch application
+- Undo support
+
+### Phase 5: Advanced features
+
+- Multi-repository workspaces
+- Repository tags
+- Symbol-aware search
+- Configurable language analyzers
+- Optional persistent memory
+- Optional local indexing
+- Performance optimization
+
+For every phase:
+
+- Explain the design.
+- Create or update only the necessary files.
+- Avoid unnecessary dependencies.
+- Include tests.
+- Include build and run instructions.
+- Verify that the application remains fully offline.
+- Verify that disk usage remains bounded.
+
+## Expected response format when implementing
+
+For every implementation task, respond with:
+
+1. Summary
+2. Assumptions
+3. Architecture decision
+4. Files to create or modify
+5. Implementation
+6. Tests
+7. Security considerations
+8. Disk-space considerations
+9. How to run
+10. Known limitations
+11. Next recommended step
+
+Do not skip safety checks. Do not invent APIs from the de.kherud library. Inspect the locally available dependency and use the actual classes and methods provided by the configured version.
+```
+
+A good project name for this tool could be **CodeForge**, **LocalCoder**, **ForgeAI**, **CodePilot Local**, or **DevMind**.
