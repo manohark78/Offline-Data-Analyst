@@ -1,0 +1,32 @@
+Build a local request tracker as two files: tracker.html and run.ps1. Target: Windows, no admin rights, no internet, no external libraries or CDN.
+
+run.ps1
+- Read the current Windows user with $env:USERNAME.
+- Start a local server using System.Net.HttpListener on http://localhost:8080/ (pick a free port if busy).
+- Serve tracker.html from the same folder.
+- API endpoints:
+  GET /api/user -> returns {"username": "<$env:USERNAME>"}
+  GET /api/requests -> returns all requests from tracker.json
+  POST /api/requests -> saves the full list to tracker.json (write atomically, create the file if missing)
+- Open the page in the default browser automatically.
+- Handle errors cleanly and print the URL in the console.
+
+tracker.html (single file, inline CSS and JS, clean modern UI)
+- Fetch the username from /api/user and show it in the header. If the API is unavailable (file opened directly), fall back to asking for a name once and remember it in localStorage.
+- Request form fields:
+  Type: dropdown (VA / PT / Others)
+  Title: text, max 200 chars, with live character counter
+  Description: textarea, max 1000 chars, with live character counter
+  Status: dropdown (Open / In progress / Closed), default Open
+- On save, each request gets an auto ID (e.g. REQ-001), created date-time, and created-by username (from the API, not editable).
+- Request list view: table with ID, Type, Title, Status, Created by, Created at. Search box, filter by Type and Status. Status shown as a colored badge. Click a row to open details.
+- Detail view: edit Type/Title/Description/Status (Status change allowed anytime), and a Comments section:
+  - Add comment: max 200 chars with live counter, limit of 15 comments per request (show a message when the limit is reached).
+  - Each comment is saved with date-time and username automatically.
+  - Display comments as: [DD/MM/YYYY HH:mm] USERNAME: comment text
+- Print button on the detail view: print-friendly layout (hide buttons and sidebar via @media print) showing request ID, Type, Title, Status, Description, created by/at, and all comments with their date-time and username.
+- Export all requests to CSV.
+- Escape all user input to prevent HTML injection.
+- Persist everything through the API (tracker.json), not only in the browser.
+
+Deliver complete working code for both files and short run instructions (including how to run the script if execution policy blocks it, e.g. powershell -ExecutionPolicy Bypass -File run.ps1).
