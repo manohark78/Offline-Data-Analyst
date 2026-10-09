@@ -94,3 +94,29 @@ Deliverables
 - Complete working code for Tracker.java, web/index.html and run.bat.
 - Short run instructions, plus a list of all API endpoints with example request/response.
 - Comment the Java code clearly, explaining each endpoint handler.
+
+
+
+---jewels
+
+Create an Excel workbook (.xlsx) called "Crown Jewel Identification Kit" to help me identify crown jewels (critical applications) across enterprise systems in a banking / credit-data environment, and to check for compromise signals and detection gaps at every layer. Use Arial 10 throughout, navy header rows with white bold text, light-yellow fill for cells the user fills in, and wrapped text. Use formulas (not hardcoded results), data validation dropdowns, and conditional formatting. Recalculate and make sure there are zero formula errors.
+
+SHEET 1 - "Read Me": purpose, a definition of a crown jewel (including its whole dependency chain), a 6-step how-to, a colour legend, assumptions (weights and thresholds are suggested defaults; ATT&CK IDs should be verified against the current version), limits (self-reported, cannot prove a system is clean), and a small table with 4 example answers.
+
+SHEET 2 - "Questionnaire" (one copy per system). Columns: ID | Layer/Section | Question | Why we ask | Answer format | Response (yellow) | Evidence/source/owner (yellow) | ATT&CK tactic(s) | Red flag if answer is | Auto-check. 
+- Top block: System name, Assessor, Date inputs, plus formulas for "Answered X of Y", count of RED FLAG and count of UNKNOWN.
+- Blue banner row per section. Freeze panes below the header.
+- For Yes/No/Unknown questions: dropdown on Response, and Auto-check formula =IF(blank,"",IF(Unknown,"UNKNOWN",IF(answer=RedFlagValue,"RED FLAG","OK"))). Colour red / amber / green.
+- Write about 120 questions in these sections, each with a short "why we ask" and ATT&CK tactic:
+ A Identity & Ownership (7), B Business Impact (8: RTO/RPO, outage loss, workaround, regulator reporting, cascade), C Data (11: data types, consumer/credit data, encryption at rest/in transit, system of record, integrity impact, copies in non-prod, partner data exchange, consent records, retention), D Application Layer (12: exposure, auth, MFA, APIs, WAF, VAPT, SBOM, CI/CD, hardcoded secrets, admin consoles, EOL components), E Database & Storage (7), F Host/Infra/Cloud (9), G Network (8), H Identity & Access (9: privileged and service accounts, PAM, shared/default passwords, dormant accounts, vendor access, token inventory), I Dependencies & Third Parties (8), J Vulnerability/Patch/Config (6), K Logging, Monitoring & Detection (12: SIEM forwarding, tamper protection, alerts for auth/persistence/exfiltration/tool-disabled, SOC coverage, ATT&CK use cases, tested detections, IR playbook), L Compromise Indicators (14, all Yes/No/Unknown with red flag = Yes: unexplained accounts, odd admin logins, config/task/web-shell changes, unknown outbound traffic, large exports, EDR disabled, log gaps, uninvestigated alerts, unknown tools, password spray, ransomware signs, leaked credentials, vendor breach), M Resilience & Recovery (5), N Regulatory & Compliance (5: RBI, CIC Act, DPDP, CERT-In, PCI-DSS, ISO 27001, audits, contractual SLAs).
+
+SHEET 3 - "Scoring": one row per system (25 rows) with a first example row. 
+- Threshold inputs (blue font): Crown Jewel if weighted score >= 4.0; Important if >= 3.0; auto Crown Jewel if Business/Data/Regulatory rating >= 5; visibility-gap flag if detection coverage < 60%.
+- Weight row (blue, must total 100%, with a check cell): Business criticality 25%, Data sensitivity 20%, Regulatory/legal 20%, Reputational 10%, Downstream dependency 10%, Recovery difficulty 10%, Exposure 5%.
+- Columns: Sys ID, System, Owner, seven 1-5 ratings (whole-number validation), Weighted score (SUMPRODUCT, blank until all 7 filled), Auto-flag, Classification (Crown Jewel / Important / Standard), Detection coverage % (input), Action priority (Crown Jewel with coverage below threshold = "URGENT - visibility gap", else "Monitor"). Conditional formatting on Classification and Action priority.
+
+SHEET 4 - "Scoring Guide": a table for the 7 criteria with Weight (linked to Scoring sheet), what 1, 3 and 5 mean, and which questionnaire sections give the evidence.
+
+SHEET 5 - "ATT&CK Coverage" (one copy per crown jewel): 14 MITRE ATT&CK Enterprise tactics (Reconnaissance to Impact) with columns: #, Tactic, Attacker goal, Example techniques with IDs (e.g. T1190, T1078, T1059, T1136, T1562, T1110, T1021, T1486), Telemetry/log source needed, Logged? (Yes/Partial/No), Detection? (Yes/Partial/No), Coverage = (logged score + detection score)/2 with Yes=1, Partial=0.5, No=0, Related questionnaire sections, Gaps/notes. Show overall coverage as an average at the top, and colour coverage red <50%, amber 50-99%, green 100%.
+
+Save as crown_jewel_questionnaire.xlsx. Then test the formulas with sample data on a temporary copy and confirm flags, scoring and coverage calculate correctly.
