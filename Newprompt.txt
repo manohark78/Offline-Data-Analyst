@@ -138,3 +138,31 @@ Audit my existing Spring Boot project (do NOT change any code, only report). Ans
 11. How do I operate it: list every endpoint and every UI button/tab with one line on what it does.
 
 End with a table: feature | present? | file/method | gap or risk, and a prioritized list of what to fix for big datasets.
+
+
+Write a beginner-friendly document titled "MITRE ATT&CK and Enterprise Risk Management: A Plain-English Guide to Cyber Risk" for readers with no cybersecurity background: business managers, risk and audit staff, and new joiners in a bank or credit-data organisation in India.
+
+Length: about 1,800 to 2,200 words (4 to 5 pages). Tone: plain English, short sentences, no jargon without explanation. Explain every technical term in one line the first time it appears, and never assume the reader knows what ATT&CK, ERM, SIEM, EDR or MFA mean. Use headings, short bullets or numbered lists, and two tables. Start each section with a one-line "In short:" summary. Output should be ready to paste into Word or Google Docs.
+
+Before writing, check the latest MITRE ATT&CK version. From v19 (April 2026), the Defense Evasion tactic is split into Stealth and Defense Impairment, so Enterprise has 15 tactics. State the ATT&CK version and an as-of date under the title.
+
+Use one running analogy throughout: a bank branch. The vault is the crown jewels, the branch security plan is risk management (ERM), and a burglar's step-by-step playbook is ATT&CK. Refer back to it so the ideas stay connected.
+
+Sections:
+1. Why this matters (short): cyber attacks can stop services, expose customer data, trigger regulators and damage trust. Say who this guide is for and what they will be able to do after reading it.
+2. Risk basics (ERM in plain words): what a risk is; risk = how likely x how bad; risk appetite; inherent vs residual risk; the four responses (reduce, transfer, avoid, accept); who owns risk (business, risk team, audit, board). Mention COSO ERM, ISO 31000 and NIST CSF 2.0 in one sentence each, saying what each is for.
+3. Crown jewels: what they are, why we protect them first, and three simple questions to spot one (would the business stop, would customer or credit data leak, would a regulator need to know).
+4. What MITRE ATT&CK is: a free public library of how real attackers behave. Explain tactics (the goal at each stage), techniques (how they do it) and sub-techniques, with one example ID such as T1078 Valid Accounts. Then add what it is NOT (not a risk score, not a checklist, not a list of software flaws).
+5. The attack stages (table): all Enterprise tactics under the columns Stage (tactic), In plain words, and Branch analogy. Keep one example technique in the plain-words column for at most six rows.
+6. How ATT&CK and ERM work together: ERM decides what matters, crown jewels show where to focus, ATT&CK shows how an attacker would get there and whether we would notice. End with a short numbered method: find crown jewels, write attack scenarios, map them to ATT&CK stages, check controls and detection gaps, rate the risk, fix or accept, monitor, report.
+7. A worked example told as a short story (clearly marked fictional): ransomware with data theft on a credit data warehouse. Follow the attacker from first entry to damage. At each step name the ATT&CK stage, the control that should stop it, and the gap found. End with a risk score before fixes (1 to 25), the fixes planned, and the lower score after.
+8. Best practices: eight short rules, each with a one-line reason.
+9. How to meet standards (table): columns Standard, What it asks (plain words), Evidence to keep. Rows: NIST CSF 2.0, ISO/IEC 27001, ISO 31000 / COSO ERM, RBI IT governance directions, CERT-In directions (incident reporting within 6 hours), DPDP Act 2023. Then 5 bullets on staying compliant: one control library mapped to all standards, an owner and test frequency per control, continuous evidence collection, tracking audit findings to closure, yearly independent assurance.
+10. How to improve security posture: 8 ordered actions, each saying which attack stages it blocks (strong sign-in with MFA and privileged access control, closing logging and alert gaps, patching exposed systems, separating networks, backups that attackers cannot delete and tested restores, practice attacks to test defences, measuring progress).
+11. Where to start: a simple first-90-days plan in three steps (days 1 to 30, 31 to 60, 61 to 90) that a small team can follow.
+12. How to know it is working: 6 to 8 key risk indicators (for example MFA coverage on crown jewels, detection coverage per attack stage, time to detect an incident, overdue critical patches, restore test pass rate), and one line each on the role of the board, risk committee, CISO, CRO, system owners and internal audit.
+13. Common misunderstandings (4 bullets): ATT&CK is not a checklist; a coverage percentage does not mean secure; a tool does not equal protection; risk can be accepted, but only formally and by the right person.
+14. Glossary: 12 to 15 terms in one line each (for example crown jewels, attack path, MFA, EDR, SIEM, SOC, RTO and RPO, residual risk, risk appetite).
+15. Sources: official links only (attack.mitre.org, the ATT&CK release notes, NIST CSF, ISO 31000, COSO).
+
+Rules: do not invent regulatory clauses, statistics or quotes. Label the RBI, CERT-In and DPDP content as summaries to be confirmed with the compliance team. Do not claim that any ATT&CK coverage percentage means a system is secure.
