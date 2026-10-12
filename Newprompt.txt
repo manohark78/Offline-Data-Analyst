@@ -166,3 +166,51 @@ Sections:
 15. Sources: official links only (attack.mitre.org, the ATT&CK release notes, NIST CSF, ISO 31000, COSO).
 
 Rules: do not invent regulatory clauses, statistics or quotes. Label the RBI, CERT-In and DPDP content as summaries to be confirmed with the compliance team. Do not claim that any ATT&CK coverage percentage means a system is secure.
+
+
+
+I have attached my existing presentation on crown jewels, MITRE ATT&CK and enterprise cyber risk. Edit this file in place: keep its template, fonts and colours, reuse any existing slide content that fits, and delete the rest. Do not rebuild it from scratch.
+
+Reviewer feedback to apply:
+- It is very high level. Be more crisp.
+- 1-2 slides for each concept, with clear outcomes and checks, like what qualifies an application as a crown jewel.
+- Do not make 10 slides. Make 3 very, very crisp and clear slides, or 5 at most.
+- Understand how our systems are placed.
+- Make it a working document, not a theory.
+
+STEP 1 - Understand our applications first, before editing.
+Below are our applications, with name and description only. Read each one and work out where it is placed: customer-facing, internal application, data store, shared service (login, network, keys) or third party. Also work out what data it likely holds, who can likely reach it, and what it feeds or depends on. Mark every inferred item '(inferred)'. Where the description does not say, write 'Unknown - confirm with owner'. Do not guess owners, access, data, dependencies or controls. Ask me at most 3 questions, and only if you cannot continue without them.
+
+STEP 2 - Edit the deck to 4 slides. A 5th slide is allowed only to continue the applications table from slide 2. Never more than 5.
+
+Rules for every slide:
+- Title of 10 words or fewer that states a decision or result.
+- One line labelled 'Outcome:' (20 words or fewer) saying what this slide lets us decide.
+- One table or checklist labelled 'Checks:' with at most 5 columns and at most 8 words per cell. A Yes / No / Unknown grid may have up to 7 narrow columns.
+- No paragraphs. Remove all theory, definitions, analogies, agenda, glossary and thank-you slides. Use a one-line footnote if a term must be explained.
+- Cells use Yes / No / Unknown. Every row ends with a next action and an owner. Never turn an Unknown into a green cell.
+- 2 lines of speaker notes.
+
+Slide 1 - What qualifies an application as a crown jewel
+Outcome: classify any application as Crown Jewel, Important or Standard in 5 minutes.
+Checks (Yes / No / Unknown): (1) customer-facing or transaction-critical? (2) holds consumer credit data, other sensitive data, credentials or keys? (3) business stops within hours if it is down? (4) breach or outage reportable to a regulator? (5) many systems depend on it, or is it a shared service? (6) reachable from the internet, partners or broad internal networks?
+Rule: 0-1 Yes = Standard. 2-3 Yes = Important. 4 or more Yes, or a Yes on check 2, 4 or 5 = Crown Jewel. Unknown counts as Yes until confirmed. Judge by impact, not by whether an application is internal.
+
+Slide 2 - How our applications are placed
+Outcome: a ranked list of our applications with a provisional tier and the evidence for it.
+Checks: one table, Crown Jewels first. Columns: Application | Placed as | Tier (provisional) | Why (words from the description) | To confirm, and owner.
+
+Slide 3 - MITRE ATT&CK: what we check on each crown jewel
+Outcome: we know which attack stages are still unchecked for each crown jewel.
+Checks: a grid of Crown Jewels against these ATT&CK v19 stages and checks: Initial Access (access paths known, MFA on remote access); Credential Access (admin accounts named and in a vault); Lateral Movement (network segmented); Detection (logs in the SIEM, alert if security tools are switched off, alert on large outbound transfers); Impact (immutable backup, tested restore). Most cells will be Unknown. Present it as a confirmation list, not as findings. Footnote: ATT&CK is a library of how real attackers behave, not a checklist or a risk score.
+
+Slide 4 - Cyber risk: what we fix first and who owns it
+Outcome: a priority list of gaps, each with a response and an owner.
+Checks: 5 to 8 rows taken from the Unknown cells on slide 3 plus any known gap. Columns: Application | Gap | Score (impact x likelihood, 1-25) | Response (reduce / transfer / avoid / accept) | Owner and date. Where likelihood is Unknown, show 'Unknown' and rank by impact.
+Bottom line, next 30 days: confirm the crown jewel list with owners; send each owner four questions (who owns it, who or what can reach it, what data it holds, what feeds it or stops if it fails); then re-score.
+Footnote: accepting a risk must be formal, written and approved by the right authority.
+
+Our applications (name and description):
+[PASTE YOUR APPLICATIONS HERE]
+
+When finished, tell me in 5 lines: what you removed, what you kept, which applications are provisional Crown Jewels and why, which cells are Unknown, and who needs to confirm what.
