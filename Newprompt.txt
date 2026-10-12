@@ -120,3 +120,21 @@ SHEET 4 - "Scoring Guide": a table for the 7 criteria with Weight (linked to Sco
 SHEET 5 - "ATT&CK Coverage" (one copy per crown jewel): 14 MITRE ATT&CK Enterprise tactics (Reconnaissance to Impact) with columns: #, Tactic, Attacker goal, Example techniques with IDs (e.g. T1190, T1078, T1059, T1136, T1562, T1110, T1021, T1486), Telemetry/log source needed, Logged? (Yes/Partial/No), Detection? (Yes/Partial/No), Coverage = (logged score + detection score)/2 with Yes=1, Partial=0.5, No=0, Related questionnaire sections, Gaps/notes. Show overall coverage as an average at the top, and colour coverage red <50%, amber 50-99%, green 100%.
 
 Save as crown_jewel_questionnaire.xlsx. Then test the formulas with sample data on a temporary copy and confirm flags, scoring and coverage calculate correctly.
+
+
+
+Audit my existing Spring Boot project (do NOT change any code, only report). Answer each point with YES / NO / PARTIAL, and give the file name + class/method for evidence.
+
+1. VLOOKUP: exact match, fill-blanks-only mode, range/approximate match, multiple return columns, duplicate-key handling (first/last/error), composite keys, key normalization (trim, case, 100 vs 100.0)?
+2. Does lookup use a HashMap/TreeMap (O(n+m)) or nested loops (O(n*m))?
+3. Reconcile: statuses Matched / Only in A / Only in B / Mismatch, tolerance, and which column mismatched?
+4. Consolidate, filter, merge (inner/left/right/full), split, concat: which exist and which are missing?
+5. Does download return the FULL result or only the preview rows? Show the exact code path for both.
+6. Preview: row limit and whether total row count is returned.
+7. XLSX read/write: streaming (SAX / SXSSFWorkbook) or full in-memory (XSSFWorkbook)? CSV handled by streaming?
+8. Rows stored as Map<String,String> or String[]? Any whole-file loads into memory?
+9. Is there a background job / progress for big files? Excel 1,048,576 row limit handled?
+10. Is there any DB or engine (DuckDB/H2/other) in use? Which dependencies are in pom.xml?
+11. How do I operate it: list every endpoint and every UI button/tab with one line on what it does.
+
+End with a table: feature | present? | file/method | gap or risk, and a prioritized list of what to fix for big datasets.
