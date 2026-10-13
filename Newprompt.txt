@@ -214,3 +214,37 @@ Our applications (name and description):
 [PASTE YOUR APPLICATIONS HERE]
 
 When finished, tell me in 5 lines: what you removed, what you kept, which applications are provisional Crown Jewels and why, which cells are Unknown, and who needs to confirm what.
+
+
+Create a 4-slide, 16:9 PowerPoint (.pptx) working deck titled "Crown Jewels: Working Deck". It is a working document, not a theory deck. Use editable PowerPoint tables, not images.
+
+Design: Arial. Background #f7f6f2, text #1b2430, navy #14213d for table headers, teal #0f6b5c for the Outcome line, amber #fff1c7 for Unknown cells, soft red #f4c7c3 for Crown Jewel cells. Titles 56 pt or larger, body text 24 pt or larger, no paragraphs, at most 8 words per table cell. No agenda, theory, glossary or thank-you slide.
+
+Every slide has, in this order: a title of 10 words or fewer; a teal line starting 'Outcome:'; a line starting 'Checks:'; one table; a footer 'Last updated: [date]'; 2 lines of speaker notes. Cells use Yes / No / Unknown. Never guess: where information is missing, write 'Unknown'. Never make an Unknown cell green. Use the placeholders APP-01 to APP-06 plus one example row 'APP-00 EXAMPLE' in grey italics (fictional, to be deleted).
+
+Slide 1 - Title: Classify any application in 5 minutes
+Outcome: Crown Jewel, Important or Standard, with evidence.
+Checks: a table with columns # | Checks (Yes / No / Unknown) | Why it matters, and these six rows: 1 Customer-facing or transaction-critical? 2 Holds credit data, sensitive data, credentials or keys? 3 Business stops within hours if it is down? 4 Breach or outage reportable to a regulator? 5 Many systems depend on it, or shared service? 6 Reachable from internet, partners or broad networks?
+Next to the table, a navy rule card: 0-1 Yes = Standard. 2-3 Yes = Important. 4 or more Yes, or Yes on check 2, 4 or 5 = Crown Jewel. Unknown counts as Yes until confirmed. Judge by impact, not by internal or external.
+
+Slide 2 - Title: Our applications, ranked by provisional tier
+Outcome: a ranked list with a provisional tier and the evidence for it.
+Checks: answer the 6 checks from slide 1 and count the Yes answers. Unknown: confirm with owner.
+Table columns: Application | Placed as (customer-facing, internal application, data store, shared service or third party) | Tier (provisional) | Why (words from the description) | Owner, next action. Crown Jewels first. Footer also says: Provisional, based on name and description only.
+
+Slide 3 - Title: Which attack stages are still unchecked?
+Outcome: every crown jewel shows which attack stages are still unchecked.
+Checks: Yes / No / Unknown per stage. Never green without evidence.
+Table columns (MITRE ATT&CK v19 stages): Crown jewel | Initial Access: MFA on remote access | Credential Access: admin accounts in vault | Lateral Movement: network segmented | Detection: logs in SIEM, alerts | Impact: immutable backup, tested restore | Next action, owner. Only crown jewels from slide 2 appear here. Footer note: ATT&CK is a library of attacker behaviour, not a checklist or risk score.
+
+Slide 4 - Title: Rate each gap and decide who fixes it
+Outcome: ranked gaps, each with a response and an owner.
+Checks: score = impact (1-5) x likelihood (1-5). Bands: 1-5 low, 6-12 medium, 13-19 high, 20-25 critical. Likelihood Unknown: rank by impact.
+Table columns: Application | Gap (from slide 3) | Impact | Likelihood | Score | Response (reduce, transfer, avoid or accept) | Owner, date. Footer note: accepting a risk must be formal, written and approved.
+
+Speaker notes: slide 1 - apply the six checks to every application; Unknown counts as Yes until the owner confirms. Slide 2 - one row per application; quote the words that support each Yes. Slide 3 - never mark a cell green without evidence; Unknown means we ask the owner. Slide 4 - impact comes from the tier; choose one response per gap and name one owner with a date.
+
+Our applications (name and description; leave empty for a blank template):
+[PASTE HERE]
+
+When finished, give me a 3-line summary, then one line per slide stating its Outcome.
