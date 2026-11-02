@@ -248,3 +248,48 @@ Our applications (name and description; leave empty for a blank template):
 [PASTE HERE]
 
 When finished, give me a 3-line summary, then one line per slide stating its Outcome.
+
+You are a senior Spring Boot / database performance engineer. Goal: make the Dashboard load fast (currently 4-6 seconds with lakhs of rows, even after composite indexes and pagination). Work in 3 phases. Do NOT change code in Phase A or B. Stop and wait for my approval after each phase.
+
+## Context
+- Java 21, Spring Boot, Spring Security, Thymeleaf, Apache ECharts, H2 now (Postgres later; keep both working).
+- Tables I remember: varecord (main VA data, lakhs of rows), comments, app_users, user_scope (user -> IP/server mapping).
+- Hierarchy: user -> mapped server (IP Address) -> applications (TU_AppName) -> AppTag -> VA findings. Admin sees everything; normal user sees only mapped servers/applications.
+- Relevant varecord fields: UID, Type, Port, Due date (UTC), Date created (UTC), Compliance status, Risk rating, Risk score, Results, IP Address, TU_AppName, OwnedBy, AppTag, SystemEnvironment (prod/dev/UAT).
+- Weekly upload uses compare-and-append (never overwrite). Do NOT change the upload logic except where I explicitly allow a hook to refresh summary data after a successful upload.
+- Dashboard today: 4 KPI cards with slicers (Compliance status, TU_AppName, AppTag, Risk rating): (1) severity critical/high/medium, (2) SLA out/within/nearing, (3) environment, (4) VA count per application and AppTag per application. Charts: one donut (severity) and horizontal bars for the rest, hover shows application name / AppTags.
+
+## SLA rules (policy data, must NOT be hard-coded in code)
+Risk score -> rating -> TAT days: 10.0 Breach Potential 2 | 9.0-9.9 Emerging Threat 7 | 8.0-8.9 Critical 15 | 7.0-7.9 High 30 | 4.0-6.9 Medium 60 | 0.1-3.9 Low 120 | 0 Information (owner discretion, excluded from SLA).
+Status per finding: OUT_OF_SLA if due_date < today; NEARING if due_date - today <= max(1 day, 25% of TAT) (percentage configurable); else WITHIN. Store policy in a table sla_policy (min_score, max_score, rating, tat_days, warning_pct).
+
+## Architecture rules
+- controller = HTTP only, service = business rules, repository = ALL DB access, DTOs for responses, no entities in controllers.
+- Counting, grouping, filtering, sorting happen in the DATABASE. Never load entities to count in Java.
+- Do not add an index, cache or table without naming the query it serves.
+
+## PHASE A - DIAGNOSE (read-only)
+1. Find every code path that builds the dashboard (controller -> service -> repository -> template/JS). List each query/data call per KPI card and chart.
+2. Report for each: what is executed, whether it loads entities or DTO/aggregates, whether it uses findAll() or Java-side grouping/filtering, whether SLA status is computed per row in Java, whether scope filtering (user_scope) is done in SQL, number of queries per page load, N+1 patterns.
+3. Add temporary timing logs (service-level, per chart, plus SQL count) so I can measure; tell me exactly how to run it and what numbers to send back.
+4. List the existing indexes and, for each dashboard query, whether an index is used (give the EXPLAIN statements to run for H2 and Postgres).
+5. Output a table: Chart/KPI | Query | Problem | Likely cost | Recommended fix. Then STOP.
+
+## PHASE B - PLAN (no code)
+Propose, with reasons and rejected alternatives:
+1. dashboard_summary table (pre-aggregated counts): batch_id, server_id, application_id, apptag, environment, risk_rating, compliance_status, due_date bucket or sla fields, cnt. Decide the right grain so ALL slicers and KPI cards can be answered from it with SUM(cnt) and the user scope filter (server_id/application_id IN user scope).
+2. How SLA status is derived in SQL (CASE on due_date / warn_date vs CURRENT_DATE) and how the summary stays correct as days pass (nightly @Scheduled refresh) and after each upload (refresh hook, run in a separate transaction, only for affected scope).
+3. Integer IDs for server/application/apptag in the hot table where missing, and any narrow covering index needed. Show only indexes justified by named queries.
+4. Caching: Caffeine cache keyed by (user scope + slicer filters), evicted when summary is refreshed.
+5. Splitting the page into independent JSON endpoints (/api/dashboard/severity, /sla, /environment, /top-applications, /apptag, /trend) that the page fetches in parallel; page shell renders immediately.
+6. Chart improvements for ECharts: severity donut; SLA stacked bar by severity; environment donut; Top 10 applications horizontal bar plus "Others"; AppTag treemap or sunburst with application -> apptag drill-down; trend line (new/closed/reopened per upload) if data exists; ageing buckets. Use Top-N limits so the browser never renders thousands of points.
+7. Config: spring.jpa.open-in-view=false, read-only transactions for dashboard reads, HikariCP settings.
+8. A step-by-step order, each step independently testable, with expected before/after timing. Then STOP.
+
+## PHASE C - IMPLEMENT (only after approval, one step per iteration)
+- Small diffs, keep the app working after every step, migrations (Flyway if present, otherwise schema script) compatible with H2 and Postgres.
+- Follow the package rules above.
+- Mandatory correctness test: for several slicer combinations and users, dashboard numbers from dashboard_summary must EQUAL counts computed directly from varecord. Add this as an automated test and also test after a second upload (new + carried-forward + closed + reopened mix).
+- After each step show: changed files, why each change was made (reason AND the alternative you rejected), and before/after timing numbers.
+- Add short comments in code explaining WHY, since the developer must explain design choices in reviews.
+
