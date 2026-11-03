@@ -293,3 +293,86 @@ Propose, with reasons and rejected alternatives:
 - After each step show: changed files, why each change was made (reason AND the alternative you rejected), and before/after timing numbers.
 - Add short comments in code explaining WHY, since the developer must explain design choices in reviews.
 
+
+
+Redesign the Dashboard tab of my Spring Boot (Thymeleaf + Apache ECharts) app to match the design below. Keep Thymeleaf, no React/Vue. Do not change backend queries or security. Data comes from JSON endpoints (/api/dashboard/severity, /sla, /by-application, /by-apptag, /environment, /risk). If an endpoint is missing, create a thin controller->service->repository stub that returns the shape described and tell me, do not invent SQL logic.
+
+## Offline rules (office machines may have no internet)
+Host ECharts, the Inter font (woff2) and any icon SVGs locally under /static. No CDN links.
+
+## Design tokens (define once as CSS variables in dashboard.css)
+- Page background #EEF2F8, card #FFFFFF, text #14213D, muted text #4A5670, divider/track #E8EDF5
+- Card: radius 18px, padding 22px 24px, shadow 0 1px 2px rgba(20,33,61,.06), 0 8px 24px rgba(20,33,61,.06)
+- Card label: 12px, weight 600, uppercase, letter-spacing .08em, color muted. Big number: 38px, weight 700.
+- Font: Inter, fallback system-ui. Minimum text size 12px.
+- ONE shared color map in colors.js used by every chart:
+  Severity: Critical #C93A3A, High #E8782A, Medium #D9A21B
+  SLA: Within #1E8A5A, Nearing #E0A21A, Out of SLA #C93A3A
+  Environment: Prod #2F63D0, UAT #6C48D9, Dev #12877F, DR/other #7B8599
+  Applications bars #2F63D0, AppTag tiles shades of purple/blue/teal
+- Layout: max-width 1360px centered, CSS grid repeat(auto-fit, minmax(380px, 1fr)), gap 20px; stacks to one column on phones.
+
+## Page structure
+1. Header: title "Vulnerability Dashboard", subtitle (section, snapshot date, scope: Admin or the user's name), and on the right the total open findings as a big number.
+2. Slicer chips row (real <button> elements, 44px min height): Compliance status, TU_AppName, AppTag, Risk rating, Snapshot date. Each opens a dropdown with multi-select and a clear option. Selected slicers show as "Label: value".
+3. Six KPI cards:
+   1) Severity: ECharts pie, radius ['55%','75%'], rounded slices (borderRadius 8, white border), center text = total, legend on the right with counts, emphasis scale on hover.
+   2) SLA status: big "% within SLA" number, a stacked bar (within/nearing/out) and a 3-row legend with counts.
+   3) By application (top 6): horizontal bar, sorted descending, value label at the end, "Others" row if more than 6, dataZoom only if user expands.
+   4) By AppTag (top 6): horizontal bar in the first version (e.g. Azul Zulu, Weak SSH message, X.509 certificate, Java, Apache Tomcat, Apache Solr). Make the chart type switchable between bar and treemap with a small toggle, default bar.
+   5) Environment: donut like Severity, center text = % in Prod.
+   6) Risk: big average risk score "x.x / 10", a progress track, and 3 rows: Breach Potential (10.0), Emerging Threat (9.0-9.9), Critical (8.0-8.9) with counts.
+4. Footer note area for "Sample data" is NOT needed in the real app.
+
+## Interactions
+- Cross-filtering: clicking a slice/bar/tile sets that value as a filter for ALL cards and the Data tab. Show active filter chips with an "x" and a "Clear all" button. Slicers and chart clicks stay in sync (single filter state object in filters.js).
+- Tooltips show name, count and percentage. Hover on an application bar shows its AppTags; hover on an AppTag shows its applications (use tooltip formatter).
+- Each card has a small toolbox icon: saveAsImage (PNG) so I can paste into slides.
+- Each card loads independently and in parallel via fetch, with a per-card loading skeleton (chart.showLoading) and an error message with a Retry button if the call fails.
+- Smooth animation (400-600ms), window resize handled, debounce filter changes (250ms).
+- Keyboard accessible: cards and chips focusable, visible focus ring, aria-label on every chart container.
+
+## Code structure and quality
+- Thymeleaf: templates/dashboard.html (layout only), fragments for header, slicers and one fragment per card.
+- static/js: colors.js, filters.js, api.js, and one file per chart (severityChart.js etc.). Each JS function gets a one-line comment explaining what it does and WHY each non-obvious ECharts option is used (I must explain this in reviews).
+- Keep JavaScript simple and plain (no frameworks, no build tools).
+
+First show a plan listing the files you will create or change. Then implement one card at a time and wait for my OK after the first card.
+
+
+Add a left sidebar layout to my Thymeleaf app. Do not change page content or backend logic, only the shell. Host all assets locally (no CDN).
+
+## Menu items live in ONE place so I can edit them easily
+Create config/MenuConfig (Java) or templates/fragments/menu-data, a simple list of: label, icon name, url, required role (ADMIN or ALL), section key. Initial items:
+- Executive Dashboard (ADMIN)   [placeholder]
+- VA   (ALL)  [default selected]
+- PT   (ALL)
+- Exceptions (ALL)
+- VIZ (ALL)
+- CERT-IN (ALL)
+- Upload (ADMIN)  [placeholder]
+- Users and Mapping (ADMIN)  [placeholder]
+Items the logged-in user is not allowed to see must not be rendered (check on server with Spring Security, not only hidden by CSS). Adding a new section must need only one new line in this list.
+
+## Look
+- Width 240px; collapsible to 72px (icons only) with a toggle button at the top; remember the state in localStorage.
+- Background #14213D, text #C9D3E6, section label text #8FA0BF (12px, uppercase, letter-spacing .08em).
+- Item: height 44px, radius 10px, icon 20px (inline SVG, stroke style, 1.75 stroke width) + label 14px weight 500, 12px horizontal padding.
+- Hover: background rgba(255,255,255,.08). Active: background rgba(255,255,255,.14), text #FFFFFF, 3px left accent bar #5B8CFF.
+- Collapsed mode: show a tooltip with the label on hover and keyboard focus.
+- Top: app logo/name area (placeholder text "VM Tracker"). Bottom: user card with avatar initials, name, role and a logout button.
+- Main content area has background #EEF2F8 and scrolls independently; sidebar is fixed/sticky full height.
+- Responsive: below 900px the sidebar becomes an off-canvas drawer opened from a hamburger button in a top bar, with a dim overlay; close on overlay click or Escape.
+- Accessibility: <nav aria-label="Main">, aria-current="page" on the active item, visible focus ring, 44px touch targets, contrast at least 4.5:1.
+- Optional count badge on an item (for example number of nearing-SLA findings), off by default.
+
+## Structure
+- templates/fragments/sidebar.html (Thymeleaf fragment) and templates/layout.html that wraps every page.
+- static/css/sidebar.css (use CSS variables for the colors above) and static/js/sidebar.js (collapse + mobile drawer only).
+- The active item comes from a model attribute (activeSection) set in each controller.
+- Inside a section (for example VA) the existing tabs stay: Dashboard, Comments, Data. Show them as a tab bar at the top of the content area, not in the sidebar.
+- Comment the CSS and JS briefly (what and why), since I have to explain the code.
+
+First show a plan with the files to change, then implement.
+
+
