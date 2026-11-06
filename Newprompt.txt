@@ -439,3 +439,25 @@ Never use 3D, exploded slices, dual axes, or more than 6 colors in one chart.
 First list the files you will create or change and show tokens.css and chartTheme.js. Then convert ONE existing chart and wait for my review before converting the rest. Finally add a style-guide page (/style-guide) that renders every chart type with sample data, so I can check the look and show it to others.
 
 
+## RESPONSIVE LAYOUT (HIGHEST PRIORITY)
+The UI must look correct at 100% browser zoom on every device. Today it only looks right at 75% zoom on laptops, which means sizes are too large and fixed for laptop viewports (about 1280-1536 CSS px wide, because of Windows display scaling of 125-150%). Fix the root cause: no layout should depend on fixed pixel widths or heights.
+
+Target viewports to support (CSS px): 360, 768, 1024, 1280, 1366, 1536, 1920, 2560. On a laptop at 100% zoom the page must look like it currently does at 75%, and on a 1920+ desktop it must not look tiny.
+
+Rules:
+1. Fluid root size: html { font-size: clamp(13px, 0.542vw + 5.6px, 16px); } and use rem for ALL font sizes, spacing, radii, icon sizes, card padding and chart heights. Treat these numbers as a starting point and tune them after testing at 1366, 1536 and 1920.
+2. Layout with CSS Grid/Flexbox only: page container width:100% with max-width; card grid repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); no fixed px widths on cards, sidebar content, tables or charts. Set box-sizing: border-box globally and min-width: 0 on every grid/flex child (this prevents charts and tables from overflowing).
+3. Chart containers: width 100%, height from clamp() (for example clamp(12rem, 22vh, 18rem)) or aspect-ratio. Never fixed px heights. Every chart resizes through a ResizeObserver on its container (not only window resize) and calls chart.resize(); this also covers sidebar collapse/expand.
+4. Sidebar: full width 15rem on large screens, auto-collapse to the icon-only 4.5rem width below 1366px, off-canvas drawer below 900px.
+5. Breakpoints: 600, 900, 1200, 1440 px. Below 900 everything stacks to one column; the slicer row wraps; tables scroll inside their own overflow-x: auto container, never the page.
+6. No horizontal page scroll at any width. Avoid 100vw (scrollbar causes overflow); use 100% instead. Add <meta name="viewport" content="width=device-width, initial-scale=1">.
+7. Text must never clip or overlap: long names use ellipsis with the full text in a tooltip; numbers use tabular-nums. Minimum rendered text size 12px at the smallest viewport.
+8. Cards in the same row keep equal height and align. Use clamp() for big numbers (for example clamp(1.75rem, 2.4vw, 2.4rem)).
+
+Acceptance checklist (verify and report each item):
+- At 1366, 1536 and 1920 wide at 100% zoom the dashboard shows the same number of cards per row as intended, nothing is cut off, and no horizontal scrollbar appears.
+- At 768 and 360 wide the layout stacks cleanly and all controls remain tappable (44px minimum).
+- Changing the browser zoom between 80% and 125% does not break the layout.
+- Collapsing the sidebar makes charts resize to fill the freed space.
+- List any remaining fixed px widths/heights in CSS and JS that you could not remove, with the reason.
+Test using Chrome DevTools device toolbar at each width.
