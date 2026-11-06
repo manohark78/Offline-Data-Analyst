@@ -1,4 +1,4 @@
-Build a local request tracker as two files: tracker.html and run.ps1. Target: Windows, no admin rights, no internet, no external libraries or CDN.
+yeBuild a local request tracker as two files: tracker.html and run.ps1. Target: Windows, no admin rights, no internet, no external libraries or CDN.
 
 run.ps1
 - Read the current Windows user with $env:USERNAME.
@@ -374,5 +374,68 @@ Items the logged-in user is not allowed to see must not be rendered (check on se
 - Comment the CSS and JS briefly (what and why), since I have to explain the code.
 
 First show a plan with the files to change, then implement.
+
+
+Create a reusable visual style system (design tokens + chart theme) for my Spring Boot Thymeleaf dashboard that uses Apache ECharts. This is a STYLING task only: do not change backend queries, endpoints, data shapes or security. Plain JavaScript and CSS only (no frameworks, no build tools). Host all assets locally (ECharts, Inter font as woff2, SVG icons): no CDN links, because office machines may be offline.
+
+The rules below apply to EVERY metric card and chart, whatever data it shows. Nothing may be styled per chart by hand; every chart must get its look from the shared theme.
+
+## 1. Design tokens (CSS variables in static/css/tokens.css)
+Colors
+- Page background #EEF2F8, surface (card) #FFFFFF, text #14213D, muted text #4A5670, border/track/grid #E8EDF5
+- Brand/interactive blue #2F63D0 (focus ring, active filters)
+- Semantic roles (use ONLY when the data really has a good/bad meaning): success #1E8A5A, warning #E0A21A, caution #E8782A, danger #C93A3A, danger-dark #8E1B3A, info #2F63D0, neutral #7B8599
+- Categorical palette for data with no good/bad meaning, in this order: #2F63D0, #6C48D9, #12877F, #E8782A, #D9A21B, #C2478A. Gray #7B8599 is reserved for "Others" / unknown and is never used as a normal category.
+- Sequential palette for intensity/heatmaps: one hue (blue) from #E8F0FE (low) to #1B4FB8 (high).
+Typography: Inter, fallback system-ui. Card label 12px/600 uppercase, letter-spacing .08em, muted. Big number 38px/700, line-height 1.05. Sub text 13px muted. Chart text 12-13px. Legend text 14px. Never below 12px.
+Shape and depth: card radius 18px, padding 22px 24px, shadow 0 1px 2px rgba(20,33,61,.06), 0 8px 24px rgba(20,33,61,.06). Inner elements radius 8-12px. Spacing scale 4/8/12/16/20/24px only.
+
+## 2. Layout and sizing
+- Page container max-width 1360px, centered, padding 28px 24px.
+- Card grid: repeat(auto-fit, minmax(380px, 1fr)), gap 20px. So 3 columns on wide screens, 2 on medium, 1 on phones.
+- Card min-height 280px. Chart area height 200-240px (fixed, so cards in a row line up). Wide cards (trends, heatmaps, tables) span 2 columns and use 260-320px chart height.
+- Card anatomy, top to bottom: label, optional big number + small sub text, chart, optional legend/footnote. A small toolbar (save as image, expand) sits at the top-right of the card, visible on hover and keyboard focus.
+- Donut diameter about 150px, with the legend on the right (stacks below on narrow cards). Bar rows 28-32px tall.
+
+## 3. How to choose and style a chart (decide by the SHAPE of the data)
+Part-of-whole (up to 5 parts): donut. radius ['55%','75%'], slice borderRadius 8, 2px white border, padAngle 2, startAngle 90, no slice labels, legend with name and right-aligned count, total or key % as centered text. More than 5 parts: top 4 + "Others" (gray).
+Ranking / many categories: horizontal bar, sorted descending, largest on top (inverse y axis). Show top 6 plus "Others". No axes, ticks or gridlines. Category name on the left (13px muted, ellipsis at about 130px, full name in tooltip), value at the bar end (bold). Bar thickness 14-16px, end radius 8, light track (#E8EDF5) behind each bar, ONE color for all bars; only the hovered bar is emphasized.
+Status split (good / warning / bad): single stacked bar, 16px high, fully rounded, 2px white gaps, semantic colors in order good -> warning -> bad, plus a legend with counts and the main percentage as a big number above.
+Hierarchy (parent -> child): treemap or sunburst with gapWidth 4, radius 8, white labels with name and count, breadcrumb for drill-down, 5-6 palette shades with at least 4.5:1 contrast against the white text.
+Single headline value out of a scale: half-circle gauge, 16px rounded progress arc, light track, big value in the center with the scale max muted below, no needle, only min and max tick labels.
+Change over time: smooth line 2.5px, no markers until hover, soft vertical gradient area (12% to 0% opacity), light horizontal gridlines only, markPoint on the maximum, 1-3 series max.
+Two-dimensional intensity (category x category): heatmap with the sequential palette, rounded cells, value labels when the cell is large enough.
+Never use 3D, exploded slices, dual axes, or more than 6 colors in one chart.
+
+## 4. Color assignment rules (works for any parameter)
+1. If the values have an order of badness (for example levels, status, age buckets), use semantic roles from worst to best: danger-dark, danger, caution, warning, success. Same value = same color on every chart and filter chip.
+2. If the values have no good/bad meaning, use the categorical palette in order. Keep the color for a value stable across all charts (derive it from a stable hash of the value, or keep a name->color map in colors.js), so "the same thing" is the same color everywhere.
+3. Single-series ranking charts use one neutral blue, not a rainbow.
+4. "Others", unknown and empty values are always gray #7B8599.
+5. Never rely on color alone: names and counts must also appear in the legend, labels or tooltip.
+
+## 5. Numbers and text
+- Format with Intl.NumberFormat('en-IN') (1,25,000). Percentages 1 decimal. Large values in cards may use compact form (12.5K) only when space is tight; the tooltip shows the full number.
+- Use plain, consistent labels. Dates in DD MMM YYYY.
+
+## 6. States and interaction
+- Tooltip: white, radius 10px, padding 10px 12px, soft shadow, 13px, no border; bold name, count, percentage.
+- Hover: slice scales up 8px, bar brightens, other items fade to 40% opacity. Click applies a filter that all cards share (active filter chips with an x and a "Clear all" button).
+- Loading: skeleton or showLoading with a subtle spinner, per card. Empty: centered muted text "No data for the selected filters". Error: short message with a Retry button.
+- Animation 400-600ms cubicOut; turn animation off when prefers-reduced-motion is set.
+- Every chart exports as PNG through the toolbox (for slides).
+
+## 7. Accessibility and responsiveness
+- Text contrast at least 4.5:1, touch targets at least 44px, visible focus ring (2px blue, 2px offset), aria-label on every chart container with a one-sentence description.
+- Charts resize on window resize and when the sidebar collapses (debounced). Check widths 360px, 768px and 1440px.
+
+## 8. Code structure
+- static/css/tokens.css (variables), static/css/cards.css (card, grid, states)
+- static/js/chartTheme.js: baseOption(), plus builders donutOption(), hBarOption(), stackedBarOption(), treemapOption(), gaugeOption(), areaLineOption(), heatmapOption(), and colorFor(value, kind) implementing section 4. Read colors from the CSS variables.
+- A chart file only passes data to a builder; it must not contain styling.
+- Add a one-line comment above each helper and each non-obvious ECharts option saying WHY it is used (I must explain this in reviews).
+
+## 9. How to work
+First list the files you will create or change and show tokens.css and chartTheme.js. Then convert ONE existing chart and wait for my review before converting the rest. Finally add a style-guide page (/style-guide) that renders every chart type with sample data, so I can check the look and show it to others.
 
 
